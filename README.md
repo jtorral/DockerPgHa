@@ -35,7 +35,7 @@ From inside the pgpatroni folder ...
 
 ```docker build -t pg16-patroni .```
 
-If succesfull, you should be able to see the images in your local rpository
+If succesfull, you should be able to see the images in your local repository
 
 ```
 REPOSITORY              TAG            IMAGE ID       CREATED             SIZE
@@ -202,3 +202,5 @@ first try to find a standby server, but if none of the listed hosts is a standby
 ## Things to do ..
 
 Still need to setup pgbackrest
+
+
