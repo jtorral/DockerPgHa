@@ -202,5 +202,6 @@ first try to find a standby server, but if none of the listed hosts is a standby
 ## Things to do ..
 
 Still need to setup pgbackrest
+Improve entrypoint.sh
 
 
