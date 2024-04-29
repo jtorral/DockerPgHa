@@ -13,7 +13,7 @@ The pgpatroni folder contains the Docker file necsessary to create an Ubunto 20.
 Lastly, we have the main folder that contains the docker-compose.yaml file.
 It is a big file but do not let that put you off. This compose file create 5 etcd containers and 6 postgres containers. You just need to focus on 1 etcd service and 1 pg service. The rest are just duplicates with minor changes.
 
-### Create netwrks
+### Create networks
 
 Create your 3 networks in Docker. This is to simulate 3 different data centers
 
