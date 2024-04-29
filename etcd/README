@@ -1,0 +1,10 @@
+
+-- Make sure you read the README file in the main directory above
+
+-- build the etcd-3.5 image for ubuntu if it does not exist yet
+
+docker images
+
+-- 
+
+docker build -t etcd-3.5 .
