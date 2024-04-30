@@ -1,0 +1,48 @@
+services:
+    pgbackrest:
+        environment:
+          NODE1: pg1-node1
+          NODE2: pg1-node2
+          NODE3: pg2-node1
+          NODE4: pg2-node2
+          NODE5: pg3-node1
+          NODE6: pg3-node2
+          CFG_DIR: /pg_ha/config
+          REPO_PATH: /pg_ha/pgbackrest
+          DATADIR: /pgdata
+          STANZA_NAME: pg_ha_db
+          PGPORT: 5432
+
+        image: pgha-pgbackrest 
+        restart: unless-stopped
+        networks:
+          net1:
+            priority: 1000
+          net2:
+            priority: 10
+          net3:
+            priority: 10
+        volumes:
+          - pgbackrest:/pg_ha/pgbackrest
+          - pghome:/var/lib/postgresql
+        hostname: pgbackrest 
+        container_name: pgha-pgbackrest
+        cap_add:
+          - SYS_ADMIN
+        entrypoint: /entrypoint.sh
+        
+        
+networks:
+  net1:
+    name: dockerNet1
+    external: true
+  net2:
+    name: dockerNet2
+    external: true
+  net3:
+    name: dockerNet3
+    external: true
+
+volumes:
+    pgbackrest:
+    pghome:

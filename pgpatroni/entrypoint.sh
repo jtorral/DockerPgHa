@@ -1,18 +1,8 @@
 #!/bin/bash
 
-# -- if file does not exist, create the config
+### -- ENV are set in docker-compose
 
-if [ -f "${CFG_DIR}/patroni.conf" ]; then
-	# patroni config file already there, lets start patroni without creating the file
-        #if [ -d "${DATADIR}/log/" ]; then
-           #ln -s ${DATADIR}/log/ /tmp/${NODE_NAME}-pg-logs
-        #fi
-	su -c '/usr/bin/patroni ${CFG_DIR}/patroni.conf' postgres
-	exit 0
-fi
-
-
-# -- last thing we do is create the patroni config file and start patroni if hasnt ben done already above
+### -- create the default patroni config file
 
 echo "
 namespace: ${NAMESPACE}
@@ -121,8 +111,97 @@ tags:
 
 chown postgres:postgres ${CFG_DIR}/patroni.conf
 
-#if [ -d "${DATADIR}/log/" ]; then
-   #ln -s ${DATADIR}/log/ /tmp/${NODE_NAME}-pg-logs
-#fi
+
+
+### -- Generate a file to use in case you want to run pgbackrest
+
+echo "
+
+### If you decide to use pgbackrest with this deploy, you must change the patroni configuration in the dcs.
+### to do so, run  
+###
+### patronictl -c ${CFG_DIR}/patroni.conf edit-config 
+###
+### If you have already made changes to your configuration file in the past, just replace the archive_command line with
+###
+### archive_command: pgbackrest --stanza=${STANZA_NAME} archive-push "${DATADIR}/pg_wal/%f"
+###
+### and add
+###
+###  recovery_conf:
+###    recovery_target_timeline: latest
+###    restore_command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} archive-get %f "%p"
+###
+### If you have not made changes and are using the default that came with te repo, just copy the info below
+### and replace everything with it.
+###
+
+
+loop_wait: 10
+maximum_lag_on_failover: 1048576
+postgresql:
+  parameters:
+    archive_command: pgbackrest --stanza=${STANZA_NAME} archive-push "${DATADIR}/pg_wal/%f"
+    archive_mode: true
+    archive_timeout: 1800s
+    hot_standby: true
+    log_filename: postgresql-%Y-%m-%d-%a.log
+    log_line_prefix: '%m [%r] [%p]: [%l-1] user=%u,db=%d,host=%h '
+    log_lock_waits: 'on'
+    log_min_duration_statement: 1000
+    logging_collector: 'on'
+    max_replication_slots: 10
+    max_wal_senders: 10
+    max_wal_size: 1GB
+    wal_keep_size: 4096
+    wal_level: logical
+    wal_log_hints: true
+  recovery_conf:
+    recovery_target_timeline: latest
+    restore_command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} archive-get %f "%p"
+  use_pg_rewind: true
+  use_slots: true
+retry_timeout: 10
+ttl: 30
+" > ${CFG_DIR}/patroni_with_pgbackrest.readme
+
+
+chown postgres:postgres ${CFG_DIR}/patroni_with_pgbackrest.readme
+
+
+### -- Generate pgbackrest.conf 
+
+echo "
+[global]
+
+repo1-host=${PGBACKREST_SERVER}
+repo1-host-user=postgres
+
+process-max=16
+log-level-console=detail
+log-level-file=debug
+
+[${STANZA_NAME}]
+
+${STANZA_INDEX}-path=${DATADIR}
+
+" > ${CFG_DIR}/pgbackrest.conf 
+
+
+#### This sym link part is important ###
+
+mv  /etc/pgbackrest.conf  /etc/pgbackrest.conf.orig
+ln -s ${CFG_DIR}/pgbackrest.conf /etc/pgbackrest.conf
+
+# -- end of pgbackrest stuff --
+
+chown postgres:postgres ${CFG_DIR}/pgbackrest.conf
+
+# -- remove ssh prompting to continue and start sshd manually
+
+echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config
+/usr/sbin/sshd
+
+# -- start patroni
 
 su -c '/usr/bin/patroni ${CFG_DIR}/patroni.conf' postgres

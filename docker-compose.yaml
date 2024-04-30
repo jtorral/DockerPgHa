@@ -1,6 +1,7 @@
 services:
     etcd-1:
-        image: etcd-3.5
+        image: pgha-etcd-3.5
+        restart: unless-stopped
         command:
             - '/usr/bin/etcd'
             - '--name=etcd-1'
@@ -23,12 +24,13 @@ services:
         volumes:
             - etcd1:/etcd_data
         hostname: etcd-1
-        container_name: etcd-1-container
+        container_name: pgha-etcd-1
 
     etcd-2:
         depends_on:
           - etcd-1
-        image: etcd-3.5
+        image: pgha-etcd-3.5
+        restart: unless-stopped
         command:
             - '/usr/bin/etcd'
             - '--name=etcd-2'
@@ -51,13 +53,14 @@ services:
         volumes:
             - etcd2:/etcd_data
         hostname: etcd-2
-        container_name: etcd-2-container
+        container_name: pgha-etcd-2
 
     etcd-3:
         depends_on:
           - etcd-1
           - etcd-2
-        image: etcd-3.5
+        image: pgha-etcd-3.5
+        restart: unless-stopped
         command:
             - '/usr/bin/etcd'
             - '--name=etcd-3'
@@ -80,14 +83,15 @@ services:
         volumes:
             - etcd3:/etcd_data
         hostname: etcd-3
-        container_name: etcd-3-container
+        container_name: pgha-etcd-3
 
     etcd-4:
         depends_on:
           - etcd-1
           - etcd-2
           - etcd-3
-        image: etcd-3.5
+        image: pgha-etcd-3.5
+        restart: unless-stopped
         command:
             - '/usr/bin/etcd'
             - '--name=etcd-4'
@@ -110,7 +114,7 @@ services:
         volumes:
             - etcd4:/etcd_data
         hostname: etcd-4
-        container_name: etcd-4-container
+        container_name: pgha-etcd-4
 
     etcd-5:
         depends_on:
@@ -118,7 +122,8 @@ services:
           - etcd-2
           - etcd-3
           - etcd-4
-        image: etcd-3.5
+        image: pgha-etcd-3.5
+        restart: unless-stopped
         command:
             - '/usr/bin/etcd'
             - '--name=etcd-5'
@@ -141,7 +146,7 @@ services:
         volumes:
             - etcd5:/etcd_data
         hostname: etcd-5
-        container_name: etcd-5-container
+        container_name: pgha-etcd-5
 
     pg1:
         depends_on:
@@ -152,7 +157,7 @@ services:
           - etcd-5
         environment:
           ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
-          NODE_NAME: pg1
+          NODE_NAME: pg1-node1
           CFG_DIR: /pg_ha/config
           PATRONI_CFG: /pg_ha/config/patroni.conf
           DATADIR: /pgdata
@@ -160,8 +165,11 @@ services:
           NAMESPACE: pg_ha
           SCOPE: pg_ha_cluster
           STANZA_NAME: pg_ha_db
+          STANZA_INDEX: pg1
+          PGBACKREST_SERVER: pgbackrest
 
-        image: pg16-patroni
+        image: pgha-pg16-patroni
+        restart: unless-stopped
         cap_add:
           - SYS_ADMIN
         entrypoint: /entrypoint.sh
@@ -175,10 +183,10 @@ services:
         ports:
           - "50551:5432"
         volumes:
-            - pg1:/pgdata
-        hostname: pg1
-        container_name: pg1-container
-
+          - pg1data:/pgdata
+          - pg1home:/var/lib/postgresql
+        hostname: pg1-node1
+        container_name: pgha-pg1-node1
     pg2:
         depends_on:
           - etcd-1
@@ -189,7 +197,7 @@ services:
           - pg1
         environment:
           ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
-          NODE_NAME: pg2
+          NODE_NAME: pg1-node2
           CFG_DIR: /pg_ha/config
           PATRONI_CFG: /pg_ha/config/patroni.conf
           DATADIR: /pgdata
@@ -197,8 +205,11 @@ services:
           NAMESPACE: pg_ha
           SCOPE: pg_ha_cluster
           STANZA_NAME: pg_ha_db
+          STANZA_INDEX: pg2
+          PGBACKREST_SERVER: pgbackrest
 
-        image: pg16-patroni
+        image: pgha-pg16-patroni
+        restart: unless-stopped
         cap_add:
           - SYS_ADMIN
         entrypoint: /entrypoint.sh
@@ -212,9 +223,10 @@ services:
         ports:
           - "50552:5432"
         volumes:
-            - pg2:/pgdata
-        hostname: pg2
-        container_name: pg2-container
+          - pg2data:/pgdata
+          - pg2home:/var/lib/postgresql
+        hostname: pg1-node2
+        container_name: pgha-pg1-node2
 
     pg3:
         depends_on:
@@ -226,7 +238,7 @@ services:
           - pg1
         environment:
           ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
-          NODE_NAME: pg3
+          NODE_NAME: pg2-node1
           CFG_DIR: /pg_ha/config
           PATRONI_CFG: /pg_ha/config/patroni.conf
           DATADIR: /pgdata
@@ -234,8 +246,11 @@ services:
           NAMESPACE: pg_ha
           SCOPE: pg_ha_cluster
           STANZA_NAME: pg_ha_db
+          STANZA_INDEX: pg3
+          PGBACKREST_SERVER: pgbackrest
 
-        image: pg16-patroni
+        image: pgha-pg16-patroni
+        restart: unless-stopped
         cap_add:
           - SYS_ADMIN
         entrypoint: /entrypoint.sh
@@ -249,9 +264,10 @@ services:
         ports:
           - "50553:5432"
         volumes:
-            - pg3:/pgdata
-        hostname: pg3
-        container_name: pg3-container
+          - pg3data:/pgdata
+          - pg3home:/var/lib/postgresql
+        hostname: pg2-node1
+        container_name: pgha-pg2-node1
 
     pg4:
         depends_on:
@@ -263,7 +279,7 @@ services:
           - pg1
         environment:
           ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
-          NODE_NAME: pg4
+          NODE_NAME: pg2-node2
           CFG_DIR: /pg_ha/config
           PATRONI_CFG: /pg_ha/config/patroni.conf
           DATADIR: /pgdata
@@ -271,8 +287,11 @@ services:
           NAMESPACE: pg_ha
           SCOPE: pg_ha_cluster
           STANZA_NAME: pg_ha_db
+          STANZA_INDEX: pg4
+          PGBACKREST_SERVER: pgbackrest
 
-        image: pg16-patroni
+        image: pgha-pg16-patroni
+        restart: unless-stopped
         cap_add:
           - SYS_ADMIN
         entrypoint: /entrypoint.sh
@@ -286,9 +305,10 @@ services:
         ports:
           - "50554:5432"
         volumes:
-            - pg4:/pgdata
-        hostname: pg4
-        container_name: pg4-container
+          - pg4data:/pgdata
+          - pg4home:/var/lib/postgresql
+        hostname: pg2-node2
+        container_name: pgha-pg2-node2
 
 
     pg5:
@@ -301,7 +321,7 @@ services:
           - pg1
         environment:
           ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
-          NODE_NAME: pg5
+          NODE_NAME: pg3-node1
           CFG_DIR: /pg_ha/config
           PATRONI_CFG: /pg_ha/config/patroni.conf
           DATADIR: /pgdata
@@ -309,8 +329,11 @@ services:
           NAMESPACE: pg_ha
           SCOPE: pg_ha_cluster
           STANZA_NAME: pg_ha_db
+          STANZA_INDEX: pg5
+          PGBACKREST_SERVER: pgbackrest
 
-        image: pg16-patroni
+        image: pgha-pg16-patroni
+        restart: unless-stopped
         cap_add:
           - SYS_ADMIN
         entrypoint: /entrypoint.sh
@@ -324,9 +347,10 @@ services:
         ports:
           - "50555:5432"
         volumes:
-            - pg5:/pgdata
-        hostname: pg5
-        container_name: pg5-container
+          - pg5data:/pgdata
+          - pg5home:/var/lib/postgresql
+        hostname: pg3-node1
+        container_name: pgha-pg3-node1
 
 
     pg6:
@@ -339,7 +363,7 @@ services:
           - pg1
         environment:
           ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
-          NODE_NAME: pg6
+          NODE_NAME: pg3-node2
           CFG_DIR: /pg_ha/config
           PATRONI_CFG: /pg_ha/config/patroni.conf
           DATADIR: /pgdata
@@ -347,8 +371,11 @@ services:
           NAMESPACE: pg_ha
           SCOPE: pg_ha_cluster
           STANZA_NAME: pg_ha_db
+          STANZA_INDEX: pg6
+          PGBACKREST_SERVER: pgbackrest
 
-        image: pg16-patroni
+        image: pgha-pg16-patroni
+        restart: unless-stopped
         cap_add:
           - SYS_ADMIN
         entrypoint: /entrypoint.sh
@@ -362,9 +389,10 @@ services:
         ports:
           - "50556:5432"
         volumes:
-            - pg6:/pgdata
-        hostname: pg6
-        container_name: pg6-container
+          - pg6data:/pgdata
+          - pg6home:/var/lib/postgresql
+        hostname: pg3-node2
+        container_name: pgha-pg3-node2
 
 networks:
   net1:
@@ -383,9 +411,15 @@ volumes:
     etcd3:
     etcd4:
     etcd5:
-    pg1:
-    pg2:
-    pg3:
-    pg4:
-    pg5:
-    pg6:
+    pg1data:
+    pg2data:
+    pg3data:
+    pg4data:
+    pg5data:
+    pg6data:
+    pg1home:
+    pg2home:
+    pg3home:
+    pg4home:
+    pg5home:
+    pg6home:
