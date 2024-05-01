@@ -251,6 +251,12 @@ Based on our patronictl list output, we know that pg1 is the leader. So, with th
 
 ```psql 'host=pg1-node1,pg1-node2,pg2-node1,pg2-node2,pg3-node1,pg3-node2 user=postgres password=postgres target_session_attrs=primary'```
 
+Connecting from the host outside the container you could specify the connection string like this 
+
+```psql 'host=localhost,localhost,localhost,localhost,localhost,localhost  port=50551,50552,50553,50554,50555,50556 user=postgres password=postgres load_balance_hosts=random target_session_attrs=standby'```
+
+Where it will connect using the specfied ports and select a random standby out of the 6 servers in the connection string.
+
 If I wanted to connect to a replica and have a random server selected from the host list, you would run
 
 ```psql 'host=pg1-node1,pg1-node2,pg2-node1,pg2-node2,pg3-node1,pg3-node2 user=postgres password=postgres target_session_attrs=standby load_balance_hosts=random'```
