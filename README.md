@@ -50,12 +50,14 @@ And lastly, pgbackrest has the following volumes defined. One for the location o
 In order for pgbackrest to work and the ability to ssh between containers, We need to be trusted across all the servers. 
 Prior to building your images, generate an ssh key that you will copy into all the containers. Or, you can use the ones in this repo which reside in the main folder. The include the public, private and authorised_keys .
 
+**Don't panic**. The ssh keys in this repo were generated inside a docker container and have no existence outside of them and have since been trashed. Feel free to use them.
+
 On a side note, the ```entrypoint.sh``` script adds ```StrictHostKeyChecking no``` to the ```/stc/ssh/ssh_config``` file so you do not need to worry about responding to ssh prompts. Especiall if using pgbackrest.
 
 Also, sshd is started at the command line ```/usr/sbin/sshd``` rather than running under systemd.
 
 
-### Create netwrks
+### Create networks
 
 Create your 3 networks in Docker. This is to simulate 3 different data centers
 
