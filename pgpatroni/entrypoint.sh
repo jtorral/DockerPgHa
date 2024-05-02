@@ -2,7 +2,9 @@
 
 ### -- ENV are set in docker-compose
 
-### -- create the default patroni config file
+### -- create the default patroni config file if it does not exist yet
+
+if [ ! -f "${CFG_DIR}/patroni.conf" ]; then
 
 echo "
 namespace: ${NAMESPACE}
@@ -62,8 +64,8 @@ bootstrap:
 
     # Some optional additional users created after initializing new cluster
     users:
-        jtorral:
-            password: jtorral
+        dude:
+            password: dude
             options:
                 - createrole
                 - createdb
@@ -90,13 +92,13 @@ postgresql:
         unix_socket_directories: /var/run/postgresql/
 
     create_replica_methods:
-        #- pgbackrest
+        - pgbackrest
         - basebackup
 
-    #pgbackrest:
-        #command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --delta --type=standby --stanza=${STANZA_NAME} restore
-        #keep_data: True
-        #no_params: True
+    pgbackrest:
+        command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=stanza=${STANZA_NAME} restore --type=delta
+        keep_data: True
+        no_params: True
 
     basebackup:
         checkpoint: 'fast'
@@ -111,9 +113,13 @@ tags:
 
 chown postgres:postgres ${CFG_DIR}/patroni.conf
 
+fi
 
 
-### -- Generate a file to use in case you want to run pgbackrest
+
+### -- Generate a file to use in case you want to run pgbackrest if its not there yet
+
+if [ ! -f "${CFG_DIR}/patroni_with_pgbackrest.readme" ]; then
 
 echo "
 
@@ -127,6 +133,11 @@ echo "
 ### archive_command: pgbackrest --stanza=${STANZA_NAME} archive-push "${DATADIR}/pg_wal/%f"
 ###
 ### and add
+###
+###  pgbackrest:
+###    command:  pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} --log-level-file=detail --delta restore
+###    keep_data: true
+###    no_params: true
 ###
 ###  recovery_conf:
 ###    recovery_target_timeline: latest
@@ -156,6 +167,10 @@ postgresql:
     wal_keep_size: 4096
     wal_level: logical
     wal_log_hints: true
+  pgbackrest:
+    command:  pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} --log-level-file=detail --delta restore
+    keep_data: true
+    no_params: true
   recovery_conf:
     recovery_target_timeline: latest
     restore_command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} archive-get %f "%p"
@@ -168,8 +183,13 @@ ttl: 30
 
 chown postgres:postgres ${CFG_DIR}/patroni_with_pgbackrest.readme
 
+fi
 
-### -- Generate pgbackrest.conf 
+
+
+### -- Generate pgbackrest.conf  if it's not there yet
+
+if [ ! -f "${CFG_DIR}/pgbackrest.conf" ]; then
 
 echo "
 [global]
@@ -183,7 +203,7 @@ log-level-file=debug
 
 [${STANZA_NAME}]
 
-${STANZA_INDEX}-path=${DATADIR}
+pg1-path=${DATADIR}
 
 " > ${CFG_DIR}/pgbackrest.conf 
 
@@ -197,11 +217,25 @@ ln -s ${CFG_DIR}/pgbackrest.conf /etc/pgbackrest.conf
 
 chown postgres:postgres ${CFG_DIR}/pgbackrest.conf
 
-# -- remove ssh prompting to continue and start sshd manually
+fi
+
+
+### -- remove ssh prompting to continue and start sshd manually
 
 echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config
 /usr/sbin/sshd
 
-# -- start patroni
 
-su -c '/usr/bin/patroni ${CFG_DIR}/patroni.conf' postgres
+### -- if we see a file called restoreme, run tghe restore script
+
+if [ -f "${CFG_DIR}/restoreme" ]; then
+        ### -- privs should be taken care of in Docker image. But, making sure
+        chown postgres:postgres ${CFG_DIR}/pgbackrestRestore.sh
+        chmod 755 ${CFG_DIR}/pgbackrestRestore.sh
+        ${CFG_DIR}/pgbackrestRestore.sh
+else
+        ### -- start patroni
+        su -c '/usr/bin/patroni ${CFG_DIR}/patroni.conf' postgres
+fi
+
+

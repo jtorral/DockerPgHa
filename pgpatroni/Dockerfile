@@ -56,4 +56,7 @@ RUN mkdir /run/sshd
 COPY entrypoint.sh /
 RUN chmod +x entrypoint.sh 
 
+COPY pgbackrestRestore.sh /pg_ha/config/
+RUN chmod +x /pg_ha/config/pgbackrestRestore.sh
+
 EXPOSE 5432
