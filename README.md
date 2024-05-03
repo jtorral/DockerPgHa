@@ -15,36 +15,54 @@ The pgbackrest folder has the necessary files to create the pgbackrest container
 Lastly, we have the main folder that contains the docker-compose.yaml file.
 It is a big file but do not let that put you off. The compose file creates 5 etcd containers and 6 postgres containers. You just need to focus on 1 etcd service and 1 pg service in the compose file. The rest are just duplicates with minor changes.
 
-### Some volume info
+## TL;DR;
+From inside the etcd folder  ...
 
-The pg containers have two volumes defined, /pgxdata and /pgxhome. /pgxdata is for keeping the database even if we remove the container and /pgxhome is for keeping postgres related info.
+``` docker build -t pgha-etcd-3.5 . ```
 
-for example
+From inside the pgpatroni folder ...
 
-```
-        volumes:
-          - pg2data:/pgdata
-          - pg2home:/var/lib/postgresql
-```
+```docker build -t pgha-pg16-patroni .```
 
-```x``` is the number we assigned the container.
+From inside the pgbackrest folder ...
 
-The etcd containers have volumes defined for keeping etcd data
+```docker build -t pgha-pgbackrest .```
 
-for example
+From the main folder
 
-```
-        volumes:
-            - etcd5:/etcd_data
-```
+```./genCompose -n pg -d 3 -p 2 -v 16```
 
-And lastly, pgbackrest has the following volumes defined. One for the location of the backups the other for user postgres info
+FYI, this generates a docker-compose.yaml file for you.
 
 ```
-        volumes:
-          - pgbackrest:/pg_ha/pgbackrest
-          - pghome:/var/lib/postgresql
+Usage:
+       ./genCompose [OPTION]
+
+       -d Number of data centers to simulate. (default = 1)
+       -p number of nodes per data center. (default = 2)
+       -n Prefix name to use for db container.
+       -v Postgres Major version number. i.e 16
+
+       Number of db nodes is capped at 9. So (-d * -p) should be <= 9
+       Number of etcd nodes are calculated on (-d * -p ) / 2 + 1
 ```
+     
+
+Then
+
+```docker-compose create```
+
+Fololowed by
+
+```docker-compose start```
+
+Lastly ...
+
+```docker exec -it pgha-pgbackrest su -c 'pgbackrest --stanza=${STANZA_NAME} stanza-create' postgres```
+
+
+
+## The long part now ....
 
 ### SSH requirements
 In order for pgbackrest to work and the ability to ssh between containers, We need to be trusted across all the servers.
@@ -55,17 +73,6 @@ Prior to building your images, generate an ssh key that you will copy into all t
 On a side note, the ```entrypoint.sh``` script adds ```StrictHostKeyChecking no``` to the ```/stc/ssh/ssh_config``` file so you do not need to worry about responding to ssh prompts. Especially if using pgbackrest.
 
 Also, sshd is started at the command line ```/usr/sbin/sshd``` rather than running under systemd.
-
-
-### Create networks
-
-Create your 3 networks in Docker. This is to simulate 3 different data centers
-
-```
-docker network create --subnet=172.10.0.0/16 dockerNet1
-docker network create --subnet=172.20.0.0/16 dockerNet2
-docker network create --subnet=172.30.0.0/16 dockerNet3
-```
 
 ### Generate the images
 
@@ -95,6 +102,10 @@ pgha-pgbackrest         latest         23765655a0d5   2 hours ago    
 pgha-etcd-3.5           latest         edab3b23c2c4   3 hours ago     344MB
 ```
 
+### Generate a docker-compose
+
+```./genCompose```
+
 ### Bring up the environment
 
 Once the images are ready, from the main folder you can run ...
@@ -112,132 +123,107 @@ After you start the containers you should see the following containers by runnin
 
 
 ```
-CONTAINER ID   IMAGE               COMMAND                  CREATED          STATUS          PORTS                               NAMES
-c71d992adf66   pgha-pg16-patroni   "/entrypoint.sh"         2 minutes ago   Up About a minute   0.0.0.0:50552->5432/tcp             pgha-pg1-node2
-d935d3dcc3ce   pgha-pg16-patroni   "/entrypoint.sh"         2 minutes ago   Up About a minute   0.0.0.0:50556->5432/tcp             pgha-pg3-node2
-d04382d1a48e   pgha-pg16-patroni   "/entrypoint.sh"         2 minutes ago   Up About a minute   0.0.0.0:50554->5432/tcp             pgha-pg2-node2
-613b9070f2e9   pgha-pg16-patroni   "/entrypoint.sh"         2 minutes ago   Up About a minute   0.0.0.0:50555->5432/tcp             pgha-pg3-node1
-b2560432bdeb   pgha-pg16-patroni   "/entrypoint.sh"         2 minutes ago   Up About a minute   0.0.0.0:50553->5432/tcp             pgha-pg2-node1
-fc08f4cbab41   pgha-pg16-patroni   "/entrypoint.sh"         2 minutes ago   Up About a minute   0.0.0.0:50551->5432/tcp             pgha-pg1-node1
-d686acae8601   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   2 minutes ago   Up About a minute   2380/tcp, 0.0.0.0:58593->2379/tcp   pgha-etcd-5
-c69ab852cb47   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   2 minutes ago   Up About a minute   2380/tcp, 0.0.0.0:58592->2379/tcp   pgha-etcd-4
-83fe5fa1935d   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   2 minutes ago   Up About a minute   2380/tcp, 0.0.0.0:58591->2379/tcp   pgha-etcd-3
-5c8ebd9f1a6e   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   2 minutes ago   Up About a minute   2380/tcp, 0.0.0.0:58590->2379/tcp   pgha-etcd-2
-26e7e93228c6   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   2 minutes ago   Up About a minute   2380/tcp, 0.0.0.0:58589->2379/tcp   pgha-etcd-1
+CONTAINER ID   IMAGE               COMMAND                  CREATED         STATUS         PORTS                               NAMES
+b76d6f740ca4   pgha-pg16-patroni   "/entrypoint.sh"         9 minutes ago   Up 9 minutes   0.0.0.0:50554->5432/tcp             pgha-pg2-node2
+d4f0e85aabfa   pgha-pg16-patroni   "/entrypoint.sh"         9 minutes ago   Up 9 minutes   0.0.0.0:50553->5432/tcp             pgha-pg2-node1
+53b08390bcb1   pgha-pg16-patroni   "/entrypoint.sh"         9 minutes ago   Up 9 minutes   0.0.0.0:50556->5432/tcp             pgha-pg3-node2
+a1158c720440   pgha-pg16-patroni   "/entrypoint.sh"         9 minutes ago   Up 9 minutes   0.0.0.0:50552->5432/tcp             pgha-pg1-node2
+6b04443782ee   pgha-pg16-patroni   "/entrypoint.sh"         9 minutes ago   Up 9 minutes   0.0.0.0:50555->5432/tcp             pgha-pg3-node1
+5199fd9a9f9f   pgha-pg16-patroni   "/entrypoint.sh"         9 minutes ago   Up 9 minutes   0.0.0.0:50551->5432/tcp             pgha-pg1-node1
+3a500b494e00   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   9 minutes ago   Up 9 minutes   2380/tcp, 0.0.0.0:54693->2379/tcp   pgha-etcd3
+41adaefee600   pgha-pgbackrest     "/entrypoint.sh"         9 minutes ago   Up 9 minutes                                       pgha-pgbackrest
+1e779370437c   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   9 minutes ago   Up 9 minutes   2380/tcp, 0.0.0.0:54697->2379/tcp   pgha-etcd4
+4fdbc46eaaf5   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   9 minutes ago   Up 9 minutes   2380/tcp, 0.0.0.0:54696->2379/tcp   pgha-etcd5
+e79d10648177   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   9 minutes ago   Up 9 minutes   2380/tcp, 0.0.0.0:54694->2379/tcp   pgha-etcd2
+7313e0bd2203   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   9 minutes ago   Up 9 minutes   2380/tcp, 0.0.0.0:54695->2379/tcp   pgha-etcd1
 ```
 
-### Bring up pgbackrest container if wanting to use it
+### Create the stanza for backups
 
-in the pgbackrest folder , run
-
-```docker-compose create```
-then
-```docker-compose start```
-
-You will now see the container there
-
-```
-CONTAINER ID   IMAGE               COMMAND                  CREATED          STATUS          PORTS                               NAMES
-6bdb22c729f6   pgha-pgbackrest     "/entrypoint.sh"         3 minutes ago    Up 3 minutes                                        pgha-pgbackrest
-c71d992adf66   pgha-pg16-patroni   "/entrypoint.sh"         13 minutes ago   Up 12 minutes   0.0.0.0:50552->5432/tcp             pgha-pg1-node2
-d935d3dcc3ce   pgha-pg16-patroni   "/entrypoint.sh"         13 minutes ago   Up 12 minutes   0.0.0.0:50556->5432/tcp             pgha-pg3-node2
-d04382d1a48e   pgha-pg16-patroni   "/entrypoint.sh"         13 minutes ago   Up 12 minutes   0.0.0.0:50554->5432/tcp             pgha-pg2-node2
-613b9070f2e9   pgha-pg16-patroni   "/entrypoint.sh"         13 minutes ago   Up 12 minutes   0.0.0.0:50555->5432/tcp             pgha-pg3-node1
-b2560432bdeb   pgha-pg16-patroni   "/entrypoint.sh"         13 minutes ago   Up 12 minutes   0.0.0.0:50553->5432/tcp             pgha-pg2-node1
-fc08f4cbab41   pgha-pg16-patroni   "/entrypoint.sh"         13 minutes ago   Up 12 minutes   0.0.0.0:50551->5432/tcp             pgha-pg1-node1
-d686acae8601   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   13 minutes ago   Up 12 minutes   2380/tcp, 0.0.0.0:58593->2379/tcp   pgha-etcd-5
-c69ab852cb47   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   13 minutes ago   Up 12 minutes   2380/tcp, 0.0.0.0:58592->2379/tcp   pgha-etcd-4
-83fe5fa1935d   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   13 minutes ago   Up 12 minutes   2380/tcp, 0.0.0.0:58591->2379/tcp   pgha-etcd-3
-5c8ebd9f1a6e   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   13 minutes ago   Up 12 minutes   2380/tcp, 0.0.0.0:58590->2379/tcp   pgha-etcd-2
-26e7e93228c6   pgha-etcd-3.5       "/usr/bin/etcd --nam…"   13 minutes ago   Up 13 minutes   2380/tcp, 0.0.0.0:58589->2379/tcp   pgha-etcd-1
-```
+```docker exec -it pgha-pgbackrest su -c 'pgbackrest --stanza=${STANZA_NAME} stanza-create' postgres```
 
 
-## Things to keep in mind
 
-#### Node names
+### More info to be added.
 
-Most config files are kept in ```/pg_ha/config``` which should be owned by user postgres
-
-```
--rw-r--r-- 1 postgres postgres 2846 Apr 30 18:33 patroni.conf
--rw-r--r-- 1 postgres postgres 1548 Apr 30 18:33 patroni_with_pgbackrest.readme
--rw-r--r-- 1 postgres postgres  217 Apr 30 18:33 pgbackrest.conf
--rw------- 1 postgres postgres   32 Apr 30 18:33 pgpass
-```
-
-The file ```patroni_with_pgbackrest.readme``` is there for a quick reference and cut and paste if you decide to use pgbackrest. It is used for easily updating the dcs.
+How to do backup
+How to restore
 
 
-P{orts are exposed and assigned, so you can always use the same port to connect to a specific db instance from outside the container
 
-```psql -h localhost -p 50554 -U postgres```
-
-Would grant you psql access to the pgha-pg2-node2 container.
-
-You can also just exec into the container if you wish
-
-```docker exec -t pgha-pg2-node2 /bin/bash```
 
 ## Patroni
 
-The patroni config file is in /pg_ha/config/patroni.conf
+The patroni config file is in /pgha/config/patroni.conf
 
 #### Want to see which server is the primary server?
 
-You can log exec into any container and run
+Pick any pg container and run 
+```docker exec -it pgha-pg3-node2 patronictl -c /pgha/config/patroni.conf list```
 
 ```
-docker exec -it pgha-pg2-node2 /bin/bash
-```
-
-```
-patronictl -c $PATRONI_CFG list
-
-+ Cluster: pg_ha_cluster (7363753152318857246) ----+-----------+
-| Member    | Host      | Role    | State     | TL | Lag in MB |
++ Cluster: pgha_cluster (7364639776149565470) +----+-----------+
+| Member    | Host      | Role    | State     | TL | Lag in MB |
 +-----------+-----------+---------+-----------+----+-----------+
-| pg1-node1 | pg1-node1 | Replica | streaming |  1 |         0 |
-| pg1-node2 | pg1-node2 | Leader  | running   |  1 |           |
-| pg2-node1 | pg2-node1 | Replica | streaming |  1 |         0 |
-| pg2-node2 | pg2-node2 | Replica | streaming |  1 |         0 |
-| pg3-node1 | pg3-node1 | Replica | streaming |  1 |         0 |
-| pg3-node2 | pg3-node2 | Replica | streaming |  1 |         0 |
+| pg1-node1 | pg1-node1 | Replica | streaming |  1 |         0 |
+| pg1-node2 | pg1-node2 | Replica | streaming |  1 |         0 |
+| pg2-node1 | pg2-node1 | Replica | streaming |  1 |         0 |
+| pg2-node2 | pg2-node2 | Leader  | running   |  1 |           |
+| pg3-node1 | pg3-node1 | Replica | streaming |  1 |         0 |
+| pg3-node2 | pg3-node2 | Replica | streaming |  1 |         0 |
 +-----------+-----------+---------+-----------+----+-----------+
 ```
 
-Or from outside the container
+#### Want to promote a server to be Leader ?
 
-```docker exec -it pgha-pg2-node2 /usr/bin/patronictl -c /pg_ha/config/patroni.conf list```
+Pick any running pg container and run ...
 
-```
-+ Cluster: pg_ha_cluster (7363753152318857246) ----+-----------+
-| Member    | Host      | Role    | State     | TL | Lag in MB |
-+-----------+-----------+---------+-----------+----+-----------+
-| pg1-node1 | pg1-node1 | Replica | streaming |  1 |         0 |
-| pg1-node2 | pg1-node2 | Leader  | running   |  1 |           |
-| pg2-node1 | pg2-node1 | Replica | streaming |  1 |         0 |
-| pg2-node2 | pg2-node2 | Replica | streaming |  1 |         0 |
-| pg3-node1 | pg3-node1 | Replica | streaming |  1 |         0 |
-| pg3-node2 | pg3-node2 | Replica | streaming |  1 |         0 |
-+-----------+-----------+---------+-----------+----+-----------+
-```
-
-#### Want to promote a different member as the leader
-
-```docker exec -it pgha-pg2-node2 /usr/bin/patronictl -c /pg_ha/config/patroni.conf failover --candidate pg1-node1 --force```
+```docker exec -it pgha-pg3-node2 patronictl -c /pgha/config/patroni.conf failover --candidate=pg1-node1 --force```
 
 ```
-+ Cluster: pg_ha_cluster (7363753152318857246) ----+-----------+
-| Member    | Host      | Role    | State     | TL | Lag in MB |
++ Cluster: pgha_cluster (7364639776149565470) +----+-----------+
+| Member    | Host      | Role    | State     | TL | Lag in MB |
 +-----------+-----------+---------+-----------+----+-----------+
-| pg1-node1 | pg1-node1 | Leader  | running   |  2 |           |
-| pg1-node2 | pg1-node2 | Replica | streaming |  2 |         0 |
-| pg2-node1 | pg2-node1 | Replica | streaming |  2 |         0 |
-| pg2-node2 | pg2-node2 | Replica | streaming |  2 |         0 |
-| pg3-node1 | pg3-node1 | Replica | streaming |  2 |         0 |
-| pg3-node2 | pg3-node2 | Replica | streaming |  2 |         0 |
+| pg1-node1 | pg1-node1 | Leader  | running   |  2 |           |
+| pg1-node2 | pg1-node2 | Replica | streaming |  2 |         0 |
+| pg2-node1 | pg2-node1 | Replica | streaming |  2 |         0 |
+| pg2-node2 | pg2-node2 | Replica | streaming |  2 |         0 |
+| pg3-node1 | pg3-node1 | Replica | streaming |  2 |         0 |
+| pg3-node2 | pg3-node2 | Replica | streaming |  2 |         0 |
 +-----------+-----------+---------+-----------+----+-----------+
+```
+
+
+#### Want to see your current config ?
+
+Pick any running pg container and run ...
+
+```docker exec -it pgha-pg3-node2 patronictl -c /pgha/config/patroni.conf show-config```
+
+```
+loop_wait: 10
+maximum_lag_on_failover: 1048576
+postgresql:
+  parameters:
+    archive_command: /bin/true
+    archive_mode: true
+    archive_timeout: 1800s
+    hot_standby: true
+    log_filename: postgresql-%Y-%m-%d-%a.log
+    log_line_prefix: '%m [%r] [%p]: [%l-1] user=%u,db=%d,host=%h '
+    log_lock_waits: 'on'
+    log_min_duration_statement: 1000
+    logging_collector: 'on'
+    max_replication_slots: 10
+    max_wal_senders: 10
+    max_wal_size: 1GB
+    wal_keep_size: 4096
+    wal_level: logical
+    wal_log_hints: true
+  use_pg_rewind: true
+  use_slots: true
+retry_timeout: 10
+ttl: 30
 ```
 
 
@@ -251,7 +237,7 @@ Based on our patronictl list output, we know that pg1 is the leader. So, with th
 
 ```psql 'host=pg1-node1,pg1-node2,pg2-node1,pg2-node2,pg3-node1,pg3-node2 user=postgres password=postgres target_session_attrs=primary'```
 
-Connecting from the host outside the container you could specify the connection string like this 
+Connecting from the host outside the container you could specify the connection string like this
 
 ```psql 'host=localhost,localhost,localhost,localhost,localhost,localhost  port=50551,50552,50553,50554,50555,50556 user=postgres password=postgres load_balance_hosts=random target_session_attrs=standby'```
 
@@ -447,4 +433,3 @@ stanza: pg_ha_db
             database size: 22.2MB, database backup size: 22.2MB
             repo1: backup set size: 2.9MB, backup size: 2.9MB
 
-```
