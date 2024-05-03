@@ -11,8 +11,8 @@ function usage() {
         echo -e "       -n Prefix name to use for db container."
         echo -e "       -v Postgres Major version number. i.e 16"
         echo -e
-        echo -e "       Number of db nodes is capped at 9. So (-n * -g) should be <= 9 "
-        echo -e "       Number of etcd nodes are calculated on (-n * -g ) / 2 + 1 "
+        echo -e "       Number of db nodes is capped at 9. So (-d * -p) should be <= 9 "
+        echo -e "       Number of etcd nodes are calculated on (-d * -p ) / 2 + 1 "
         echo -e
         if [ ! -z "$usageMessage" ]; then
            echo -e "${usageMessage}"
