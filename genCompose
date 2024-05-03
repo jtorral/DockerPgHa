@@ -327,7 +327,7 @@ echo -e "
         ${pgBackrestEnvList}
           CFG_DIR: /pgha/config
           REPO_PATH: /pgha/pgbackrest
-          DATADIR: /pgdata
+          DATADIR: /pgdata/${pgMajor}
           STANZA_NAME: pgha_db
           PGPORT: 5432
 
