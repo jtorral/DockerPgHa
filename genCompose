@@ -21,31 +21,75 @@ function usage() {
         exit
 }
 
-### ---  Build compose file
-function genComposeFile() {
 
-
-   ### ---  Establish number of etcd nodes needed
+### ---  Establish number of etcd nodes needed
+function etcdHostsNeeded() {
    etcdNeeded=$(( ($totalNodes / 2) + 1))
-
    if [ $(($etcdNeeded%2)) -eq 0 ];
    then
        etcdNeeded=$(( $etcdNeeded + 1 ))
    fi
-
    if [ $etcdNeeded -lt 3 ]; then
       etcdNeeded=3
    fi
+}
 
-   echo -e "services:" > $COMPOSEFILE
 
+
+### --- build depends_on list for start order
+buildDependList() {
+   if [ -z $1 ]; then
+      skip=0
+   else
+      skip=$1
+   fi
+
+   local x
+   local d
+   local p
+   local nodeCount
+
+   pgDependList="depends_on: "
+
+   ### lets add etcd nodes first
+   for (( x=1; x<=$etcdNeeded; x++ ))
+   do
+      pgDependList="${pgDependList}|          - etcd${x}"
+   done
+
+   ### lets add pg nodes now
+
+   if [ $skip -eq 1 ]; then
+      return
+   fi
+
+   ### --- For now lets just depend on pg1 node1. That is why the for loop is commented out below
+   pgDependList="${pgDependList}|          - ${nodeName}1-node1"
+
+   ### --- Keep this code for future
+   ### for (( x=1; x<=$numDatacenters; x++ ))
+   ### do
+      ### for (( p=1; p<=$nodesPerDataCenter; p++ ))
+      ### do
+         ### nodeCount=$(( $nodeCount + 1 ))
+         ### pgDependList="${pgDependList}|          - ${nodeName}${x}-node${p}"
+      ### done
+   ### done
+}
+
+
+
+### ---  Build the compose file
+function genComposeFile() {
+
+   echo -e "services:" > $composeFile
+
+   etcdHostsNeeded 
 
    ### ---  Lets build some strings out of the etcd node names to use in config
-
    endPoints=""
    initialCluster=""
    etcdNodeList=""
-   dependList="depends_on: "
 
    for (( x=1; x<=$etcdNeeded; x++ ))
    do
@@ -60,9 +104,11 @@ function genComposeFile() {
          etcdNodeList="${etcdNodeList}${etcdNode}:2379"
       fi
       ### ---  Do not change spacing below
-      dependList="${dependList}|          - ${etcdNode}"
+      pgDependList="${pgDependList}|          - ${etcdNode}"
    done
 
+
+   ### --- Build the etcd blocks
    for (( x=1; x<=$etcdNeeded; x++ ))
    do
       etcdNode="etcd${x}"
@@ -71,12 +117,19 @@ function genComposeFile() {
 
 
 
+   ### --- Build the pg blocks
    nodeCount=0
 
    for (( x=1; x<=$numDatacenters; x++ ))
    do
       for (( p=1; p<=$nodesPerDataCenter; p++ ))
       do
+         ### --- If its the first node, don't add a depends on other pg nodes
+         if [ $x -eq 1 ] && [ $p -eq 1 ]; then
+            buildDependList 1
+         else 
+            buildDependList
+         fi
          nodeCount=$(( $nodeCount + 1 ))
          nn="${nodeName}${x}-node${p}"
          buildPgService $nn $etcdNodeList $nodeCount $x
@@ -87,6 +140,8 @@ function genComposeFile() {
    buildVolumes
    buildNetworks
 }
+
+
 
 
 buildPgService() {
@@ -113,7 +168,6 @@ buildPgService() {
    esac
 
    ### ---  lets generate unique ports to assign 
-
    portMap=$(( 50550 + $nc ))
 
    ### ---  Preseve spaces in variable. Stupid yaml !!!!!
@@ -121,13 +175,13 @@ buildPgService() {
    ### ---  Keep an eye on this
 
    IFS='%'
-   dependList=$(echo $dependList | tr "|" "\n")
+   pgDependList=$(echo $pgDependList | tr "|" "\n")
    unset IFS
 
 echo "
 
     ${pgNode}:
-        ${dependList}
+        ${pgDependList}
         environment:
           ETCD_NODES: $etcdNodeList
           NODE_NAME: ${pgNode}
@@ -161,15 +215,13 @@ echo "
         hostname: ${pgNode}
         container_name: pgha-${pgNode}
 
-" >> $COMPOSEFILE
+" >> $composeFile
 
 
 }
 
 
 buildVolumes() {
-
-   ### ---  Volume variables for volume block
 
    ### ---  pg container volumes
    volumeList=""
@@ -195,7 +247,6 @@ buildVolumes() {
       etcdVolumes="${etcdVolumes}|    ${etcdNode}:"
    done
 
-   ### ---  pgbackrest container volumes
    ### ---  Don't mess with the spacing!
    pgbackrestVolumes="|    pgbackrest-data:|    pgbackrest-home:";
 
@@ -207,7 +258,7 @@ buildVolumes() {
    pgbackrestVolumes=$(echo $pgbackrestVolumes | tr "|" "\n")
    unset IFS
 
-   echo "volumes: $etcdVolumes $volumeList $pgbackrestVolumes " >> $COMPOSEFILE
+   echo "volumes: $etcdVolumes $volumeList $pgbackrestVolumes " >> $composeFile
    
 }
 
@@ -215,7 +266,6 @@ buildVolumes() {
 buildNetworks() {
 
    ### ---  Network creation variables for custom networks 
-
    networkVolumes="networks:|    net1:|    net2:|    net3:|"
    IFS='%'
    networkVolumes=$(echo $networkVolumes | tr "|" "\n")
@@ -223,14 +273,13 @@ buildNetworks() {
 
    echo "
 $networkVolumes
-" >> $COMPOSEFILE
+" >> $composeFile
 
 }
 
 
 
 ### ---  generate the etcd service block
-
 buildEtcdService() {
    etcdNode=$1
    endPoints=$2
@@ -266,31 +315,18 @@ echo "
         hostname: ${etcdNode}
         container_name: pgha-${etcdNode} 
 
-" >> $COMPOSEFILE
+" >> $composeFile
 
 
 }
 
 
 ### ---  generate pgbackrest service block
-
 buildPgbackrestService() {
 
    ### ---  Environment variables for pgbackrest block
    pgBackrestEnvList="environment: "
    nodeCount=1
-
-   #for (( x=1; x<=$totalNodes; x++ ))
-   #do
-      #for (( p=1; p<=$nodesPerDataCenter; p++ ))
-      #do
-         #nn="${nodeName}${x}-node${p}"
-         ### ---  Once again, formatting for yaml. There has to be a better way !!!!
-         #pgBackrestEnvList="${pgBackrestEnvList}|          NODE${nodeCount}: ${nn}"
-         #nodeCount=$(( $nodeCount + 1 ))
-      #done
-   #done
-
 
    for (( x=1; x<=$numDatacenters; x++ ))
    do
@@ -302,20 +338,6 @@ buildPgbackrestService() {
          nodeCount=$(( $nodeCount + 1 ))
       done
    done
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
    ### ---  Once again, formatting for yaml. There has to be a better way !!!!
    IFS='%'
@@ -349,14 +371,12 @@ echo -e "
           - SYS_ADMIN
         entrypoint: /entrypoint.sh
 
-" >> $COMPOSEFILE
+" >> $composeFile
 }
 
 
 
-
 ### ---  Validate its a number
-
 function checkNumber() {
         num=$1
         valid=0
@@ -383,11 +403,7 @@ function checkIp() {
 
 
 
-COMPOSEFILE='docker-compose.yaml'
-
-# Getopts variables
-ohno=0
-ip=""
+composeFile='docker-compose.yaml'
 nodeName=""
 numDatacenters="1"
 nodesPerDataCenter=2
