@@ -30,8 +30,8 @@ RUN DEBIAN_FRONTEND=noninteractive rm -rf /var/lib/apt/lists/*
 # Clean out postgres dir
 RUN rm -rf /var/lib/postgresql/16/main/*
 
-RUN mkdir -p /pg_ha/config
-RUN chown -R postgres:postgres /pg_ha
+RUN mkdir -p /pgha/config
+RUN chown -R postgres:postgres /pgha
 
 RUN mkdir -p /pgdata
 RUN chown -R postgres:postgres /pgdata
@@ -56,7 +56,8 @@ RUN mkdir /run/sshd
 COPY entrypoint.sh /
 RUN chmod +x entrypoint.sh 
 
-COPY pgbackrestRestore.sh /pg_ha/config/
-RUN chmod +x /pg_ha/config/pgbackrestRestore.sh
+COPY pgbackrestRestore.sh /pgha/config/
+RUN chmod +x /pgha/config/pgbackrestRestore.sh
+RUN chown -R postgres:postgres /pgha
 
 EXPOSE 5432

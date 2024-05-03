@@ -47,9 +47,9 @@ pg6-path=${DATADIR}
 ### This sym link part is important ###
 
 mv /etc/pgbackrest.conf  /etc/pgbackrest.conf.orig
-ln -s /pg_ha/config/pgbackrest.conf /etc/pgbackrest.conf
+ln -s /pgha/config/pgbackrest.conf /etc/pgbackrest.conf
 
-chown -R postgres:postgres /pg_ha
+chown -R postgres:postgres /pgha
 
 # -- remove ssh prompting to continue and start sshd manually
 

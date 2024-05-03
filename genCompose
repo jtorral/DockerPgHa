@@ -1,0 +1,430 @@
+#!/bin/bash
+
+### ---  show help info
+function usage() {
+        echo -e
+        echo -e "Usage:"
+        echo -e "       $0 [OPTION]"
+        echo -e
+        echo -e "       -d Number of data centers to simulate. (default = 1)"
+        echo -e "       -p number of nodes per data center. (default = 2)"
+        echo -e "       -n Prefix name to use for db container."
+        echo -e "       -v Postgres Major version number. i.e 16"
+        echo -e
+        echo -e "       Number of db nodes is capped at 9. So (-n * -g) should be <= 9 "
+        echo -e "       Number of etcd nodes are calculated on (-n * -g ) / 2 + 1 "
+        echo -e
+        if [ ! -z "$usageMessage" ]; then
+           echo -e "${usageMessage}"
+           echo -e
+        fi
+        exit
+}
+
+### ---  Build compose file
+function genComposeFile() {
+
+
+   ### ---  Establish number of etcd nodes needed
+   etcdNeeded=$(( ($totalNodes / 2) + 1))
+
+   if [ $(($etcdNeeded%2)) -eq 0 ];
+   then
+       etcdNeeded=$(( $etcdNeeded + 1 ))
+   fi
+
+   if [ $etcdNeeded -lt 3 ]; then
+      etcdNeeded=3
+   fi
+
+   echo -e "services:" > $COMPOSEFILE
+
+
+   ### ---  Lets build some strings out of the etcd node names to use in config
+
+   endPoints=""
+   initialCluster=""
+   etcdNodeList=""
+   dependList="depends_on: "
+
+   for (( x=1; x<=$etcdNeeded; x++ ))
+   do
+      etcdNode="etcd${x}"
+      if [ $x -lt $etcdNeeded ]; then
+         endPoints="${endPoints}${etcdNode}:2380,"
+         initialCluster="${initialCluster}${etcdNode}=http://${etcdNode}:2380,"
+         etcdNodeList="${etcdNodeList}${etcdNode}:2379,"
+      else
+         endPoints="${endPoints}${etcdNode}:2380"
+         initialCluster="${initialCluster}${etcdNode}=http://${etcdNode}:2380"
+         etcdNodeList="${etcdNodeList}${etcdNode}:2379"
+      fi
+      ### ---  Do not change spacing below
+      dependList="${dependList}|          - ${etcdNode}"
+   done
+
+   for (( x=1; x<=$etcdNeeded; x++ ))
+   do
+      etcdNode="etcd${x}"
+      buildEtcdService $etcdNode $endPoints $initialCluster
+   done
+
+
+
+   nodeCount=0
+
+   for (( x=1; x<=$numDatacenters; x++ ))
+   do
+      for (( p=1; p<=$nodesPerDataCenter; p++ ))
+      do
+         nodeCount=$(( $nodeCount + 1 ))
+         nn="${nodeName}${x}-node${p}"
+         buildPgService $nn $etcdNodeList $nodeCount $x
+      done
+   done
+
+   buildPgbackrestService
+   buildVolumes
+   buildNetworks
+}
+
+
+buildPgService() {
+
+   pgNode=$1
+   etcdNodeList=$2
+   nc=$3   # Node count used to increment the port mapping
+   dc=$4   # Data center used to assign a priority to network. For example dc2 would have priority for net2. 
+
+   p1=10;
+   p2=10;
+   p3=10;
+
+   case $dc in
+      1 | 4 | 7 | 10 | 13 | 16 )
+         p1=1000
+         ;;
+      2 | 5 | 8 | 11 | 14 | 17)
+         p2=1000
+         ;;
+      3 | 6 | 9 | 12 | 15 | 18)
+         p3=1000
+         ;;
+   esac
+
+   ### ---  lets generate unique ports to assign 
+
+   portMap=$(( 50550 + $nc ))
+
+   ### ---  Preseve spaces in variable. Stupid yaml !!!!!
+   ### ---  And put line breaks in there
+   ### ---  Keep an eye on this
+
+   IFS='%'
+   dependList=$(echo $dependList | tr "|" "\n")
+   unset IFS
+
+echo "
+
+    ${pgNode}:
+        ${dependList}
+        environment:
+          ETCD_NODES: $etcdNodeList
+          NODE_NAME: ${pgNode}
+          CFG_DIR: /pgha/config
+          PATRONI_CFG: /pgha/config/patroni.conf
+          DATADIR: /pgdata/${pgMajor}
+          PG_BIN_DIR: /usr/lib/postgresql/${pgMajor}/bin
+          NAMESPACE: pgha
+          SCOPE: pgha_cluster
+          STANZA_NAME: pgha_db
+          PGBACKREST_SERVER: pgbackrest
+
+        image: pgha-pg16-patroni
+        restart: unless-stopped
+        cap_add:
+          - SYS_ADMIN
+        entrypoint: /entrypoint.sh
+        networks:
+          net1:
+            priority: ${p1}
+          net2:
+            priority: ${p2}
+          net3:
+            priority: ${p3}
+        ports:
+          - "${portMap}:5432"
+        volumes:
+          - ${pgNode}-data:/pgdata
+          - ${pgNode}-home:/var/lib/postgresql
+          - ${pgNode}-conf:/pgha/config
+        hostname: ${pgNode}
+        container_name: pgha-${pgNode}
+
+" >> $COMPOSEFILE
+
+
+}
+
+
+buildVolumes() {
+
+   ### ---  Volume variables for volume block
+
+   ### ---  pg container volumes
+   volumeList=""
+   nodeCount=1
+   for (( x=1; x<=$totalNodes; x++ ))
+   do
+      for (( p=1; p<=$nodesPerDataCenter; p++ ))
+      do
+         v1="${nodeName}${x}-node${p}-data:"
+         v2="${nodeName}${x}-node${p}-home:"
+         v3="${nodeName}${x}-node${p}-conf:"
+         volumeList="${volumeList}|    ${v1}|    ${v2}|    ${v3}"
+         nodeCount=$(( $nodeCount + 1 ))
+      done
+   done
+
+
+   ### ---  etcd container volumes
+   etcdVolumes=""
+   for (( x=1; x<=$etcdNeeded; x++ ))
+   do
+      etcdNode="etcd${x}"
+      etcdVolumes="${etcdVolumes}|    ${etcdNode}:"
+   done
+
+   ### ---  pgbackrest container volumes
+   ### ---  Don't mess with the spacing!
+   pgbackrestVolumes="|    pgbackrest-data:|    pgbackrest-home:";
+
+
+   ### ---  Once again, formatting for yaml. There has to be a better way !!!!
+   IFS='%'
+   etcdVolumes=$(echo $etcdVolumes | tr "|" "\n")
+   volumeList=$(echo $volumeList | tr "|" "\n")
+   pgbackrestVolumes=$(echo $pgbackrestVolumes | tr "|" "\n")
+   unset IFS
+
+   echo "volumes: $etcdVolumes $volumeList $pgbackrestVolumes " >> $COMPOSEFILE
+   
+}
+
+
+buildNetworks() {
+
+   ### ---  Network creation variables for custom networks 
+
+   networkVolumes="networks:|    net1:|    net2:|    net3:|"
+   IFS='%'
+   networkVolumes=$(echo $networkVolumes | tr "|" "\n")
+   unset IFS
+
+   echo "
+$networkVolumes
+" >> $COMPOSEFILE
+
+}
+
+
+
+### ---  generate the etcd service block
+
+buildEtcdService() {
+   etcdNode=$1
+   endPoints=$2
+   initialCluster=$3
+
+echo "
+    ${etcdNode}:
+        image: pgha-etcd-3.5
+        restart: unless-stopped
+        environment:
+          ENDPOINTS: $endPoints
+        command:
+            - '/usr/bin/etcd'
+            - '--name=${etcdNode}'
+            - '--initial-advertise-peer-urls=http://${etcdNode}:2380'
+            - '--listen-peer-urls=http://0.0.0.0:2380'
+            - '--listen-client-urls=http://0.0.0.0:2379'
+            - '--advertise-client-urls=http://${etcdNode}:2379'
+            - '--heartbeat-interval=250'
+            - '--election-timeout=1250'
+            - '--initial-cluster=$initialCluster'
+            - '--initial-cluster-state=new'
+            - '--initial-cluster-token=pgha'
+        networks:
+          net1:
+            priority: 1000
+          net2:
+            priority: 10
+        ports:
+            - 2379
+        volumes:
+            - ${etcdNode}:/etcd_data
+        hostname: ${etcdNode}
+        container_name: pgha-${etcdNode} 
+
+" >> $COMPOSEFILE
+
+
+}
+
+
+### ---  generate pgbackrest service block
+
+buildPgbackrestService() {
+
+   ### ---  Environment variables for pgbackrest block
+   pgBackrestEnvList="environment: "
+   nodeCount=1
+
+   #for (( x=1; x<=$totalNodes; x++ ))
+   #do
+      #for (( p=1; p<=$nodesPerDataCenter; p++ ))
+      #do
+         #nn="${nodeName}${x}-node${p}"
+         ### ---  Once again, formatting for yaml. There has to be a better way !!!!
+         #pgBackrestEnvList="${pgBackrestEnvList}|          NODE${nodeCount}: ${nn}"
+         #nodeCount=$(( $nodeCount + 1 ))
+      #done
+   #done
+
+
+   for (( x=1; x<=$numDatacenters; x++ ))
+   do
+      for (( p=1; p<=$nodesPerDataCenter; p++ ))
+      do
+         nn="${nodeName}${x}-node${p}"
+         ### ---  Once again, formatting for yaml. There has to be a better way !!!!
+         pgBackrestEnvList="${pgBackrestEnvList}|          NODE${nodeCount}: ${nn}"
+         nodeCount=$(( $nodeCount + 1 ))
+      done
+   done
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ### ---  Once again, formatting for yaml. There has to be a better way !!!!
+   IFS='%'
+   pgBackrestEnvList=$(echo $pgBackrestEnvList | tr "|" "\n")
+   unset IFS
+
+echo -e "
+    pgbackrest:
+        ${pgBackrestEnvList}
+          CFG_DIR: /pgha/config
+          REPO_PATH: /pgha/pgbackrest
+          DATADIR: /pgdata
+          STANZA_NAME: pgha_db
+          PGPORT: 5432
+
+        image: pgha-pgbackrest
+        restart: unless-stopped
+        networks:
+          net1:
+            priority: 1000
+          net2:
+            priority: 10
+          net3:
+            priority: 10
+        volumes:
+          - pgbackrest-data:/pgha/pgbackrest
+          - pgbackrest-home:/var/lib/postgresql
+        hostname: pgbackrest
+        container_name: pgha-pgbackrest
+        cap_add:
+          - SYS_ADMIN
+        entrypoint: /entrypoint.sh
+
+" >> $COMPOSEFILE
+}
+
+
+
+
+### ---  Validate its a number
+
+function checkNumber() {
+        num=$1
+        valid=0
+        regexp='^[0-9]+$'
+        if ! [[ $num =~ $regexp ]] ; then
+           echo -e
+           echo -e "Invalid number format of \"$num\" entered. Please correct and try again"
+           echo -e
+           exit
+        fi
+}
+
+
+### ---  Validate IP format
+function checkIp() {
+        ip=$1
+        valid=0
+        if [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                valid=1
+        else
+                valid=0
+        fi
+}
+
+
+
+COMPOSEFILE='docker-compose.yaml'
+
+# Getopts variables
+ohno=0
+ip=""
+nodeName=""
+numDatacenters="1"
+nodesPerDataCenter=2
+
+while getopts n:d:p:v: name
+do
+   case $name in
+      n) nodeName="$OPTARG";;
+      v) pgMajor="$OPTARG";;
+      d) numDatacenters="$OPTARG";;
+      p) nodesPerDataCenter="$OPTARG";;
+      *) usage;;
+      ?) usage;;
+   esac
+done
+shift $(($OPTIND - 1))
+
+
+if [ -z "$nodeName" ] || [ -z "$pgMajor" ]; then
+   usage
+fi
+
+checkNumber $pgMajor
+checkNumber $numDatacenters
+checkNumber $nodesPerDataCenter
+
+maxNodes=9
+totalNodes=$(($numDatacenters * $nodesPerDataCenter))
+
+if [ $totalNodes -gt $maxNodes ]; then
+   usageMessage="You have exceeded the max number of nodes (${maxNodes}) allowed. "
+   usage
+fi
+
+if [ $totalNodes -lt 2 ]; then
+   usageMessage="You must have at least 2 nodes for Patroni. You have specified $numDatacenters data center and $nodesPerDataCenter node per data center."
+   usage
+fi
+
+genComposeFile

@@ -37,14 +37,8 @@ RUN rm -rf /tmp/etcd-download-test
 #ADD etcdctl /usr/local/bin/
 #ADD etcdutl /usr/local/bin/
 
-#WORKDIR /var/etcd/
 WORKDIR /var/lib/etcd/
 
 EXPOSE 2379 2380
 
 CMD ["/usr/bin/etcd"]
-
-
-
-
-

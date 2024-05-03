@@ -1,21 +1,22 @@
 services:
-    etcd-1:
+
+    etcd1:
         image: pgha-etcd-3.5
         restart: unless-stopped
         environment:
-          ENDPOINTS: etcd-1:2380,etcd-2:2380,etcd-3:2380,etcd-4:2380,etcd-5:2380
+          ENDPOINTS: etcd1:2380,etcd2:2380,etcd3:2380,etcd4:2380,etcd5:2380
         command:
             - '/usr/bin/etcd'
-            - '--name=etcd-1'
-            - '--initial-advertise-peer-urls=http://etcd-1:2380'
+            - '--name=etcd1'
+            - '--initial-advertise-peer-urls=http://etcd1:2380'
             - '--listen-peer-urls=http://0.0.0.0:2380'
             - '--listen-client-urls=http://0.0.0.0:2379'
-            - '--advertise-client-urls=http://etcd-1:2379'
+            - '--advertise-client-urls=http://etcd1:2379'
             - '--heartbeat-interval=250'
             - '--election-timeout=1250'
-            - '--initial-cluster=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380,etcd-4=http://etcd-4:2380,etcd-5=http://etcd-5:2380'
+            - '--initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380'
             - '--initial-cluster-state=new'
-            - '--initial-cluster-token=postgres_etcd_ha'
+            - '--initial-cluster-token=pgha'
         networks:
           net1:
             priority: 1000
@@ -25,28 +26,28 @@ services:
             - 2379
         volumes:
             - etcd1:/etcd_data
-        hostname: etcd-1
-        container_name: pgha-etcd-1
+        hostname: etcd1
+        container_name: pgha-etcd1 
 
-    etcd-2:
-        depends_on:
-          - etcd-1
+
+
+    etcd2:
         image: pgha-etcd-3.5
         restart: unless-stopped
         environment:
-          ENDPOINTS: etcd-1:2380,etcd-2:2380,etcd-3:2380,etcd-4:2380,etcd-5:2380
+          ENDPOINTS: etcd1:2380,etcd2:2380,etcd3:2380,etcd4:2380,etcd5:2380
         command:
             - '/usr/bin/etcd'
-            - '--name=etcd-2'
-            - '--initial-advertise-peer-urls=http://etcd-2:2380'
+            - '--name=etcd2'
+            - '--initial-advertise-peer-urls=http://etcd2:2380'
             - '--listen-peer-urls=http://0.0.0.0:2380'
             - '--listen-client-urls=http://0.0.0.0:2379'
-            - '--advertise-client-urls=http://etcd-2:2379'
+            - '--advertise-client-urls=http://etcd2:2379'
             - '--heartbeat-interval=250'
             - '--election-timeout=1250'
-            - '--initial-cluster=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380,etcd-4=http://etcd-4:2380,etcd-5=http://etcd-5:2380'
+            - '--initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380'
             - '--initial-cluster-state=new'
-            - '--initial-cluster-token=postgres_etcd_ha'
+            - '--initial-cluster-token=pgha'
         networks:
           net1:
             priority: 1000
@@ -56,29 +57,28 @@ services:
             - 2379
         volumes:
             - etcd2:/etcd_data
-        hostname: etcd-2
-        container_name: pgha-etcd-2
+        hostname: etcd2
+        container_name: pgha-etcd2 
 
-    etcd-3:
-        depends_on:
-          - etcd-1
-          - etcd-2
+
+
+    etcd3:
         image: pgha-etcd-3.5
         restart: unless-stopped
         environment:
-          ENDPOINTS: etcd-1:2380,etcd-2:2380,etcd-3:2380,etcd-4:2380,etcd-5:2380
+          ENDPOINTS: etcd1:2380,etcd2:2380,etcd3:2380,etcd4:2380,etcd5:2380
         command:
             - '/usr/bin/etcd'
-            - '--name=etcd-3'
-            - '--initial-advertise-peer-urls=http://etcd-3:2380'
+            - '--name=etcd3'
+            - '--initial-advertise-peer-urls=http://etcd3:2380'
             - '--listen-peer-urls=http://0.0.0.0:2380'
             - '--listen-client-urls=http://0.0.0.0:2379'
-            - '--advertise-client-urls=http://etcd-3:2379'
+            - '--advertise-client-urls=http://etcd3:2379'
             - '--heartbeat-interval=250'
             - '--election-timeout=1250'
-            - '--initial-cluster=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380,etcd-4=http://etcd-4:2380,etcd-5=http://etcd-5:2380'
+            - '--initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380'
             - '--initial-cluster-state=new'
-            - '--initial-cluster-token=postgres_etcd_ha'
+            - '--initial-cluster-token=pgha'
         networks:
           net1:
             priority: 1000
@@ -88,30 +88,28 @@ services:
             - 2379
         volumes:
             - etcd3:/etcd_data
-        hostname: etcd-3
-        container_name: pgha-etcd-3
+        hostname: etcd3
+        container_name: pgha-etcd3 
 
-    etcd-4:
-        depends_on:
-          - etcd-1
-          - etcd-2
-          - etcd-3
+
+
+    etcd4:
         image: pgha-etcd-3.5
         restart: unless-stopped
         environment:
-          ENDPOINTS: etcd-1:2380,etcd-2:2380,etcd-3:2380,etcd-4:2380,etcd-5:2380
+          ENDPOINTS: etcd1:2380,etcd2:2380,etcd3:2380,etcd4:2380,etcd5:2380
         command:
             - '/usr/bin/etcd'
-            - '--name=etcd-4'
-            - '--initial-advertise-peer-urls=http://etcd-4:2380'
+            - '--name=etcd4'
+            - '--initial-advertise-peer-urls=http://etcd4:2380'
             - '--listen-peer-urls=http://0.0.0.0:2380'
             - '--listen-client-urls=http://0.0.0.0:2379'
-            - '--advertise-client-urls=http://etcd-4:2379'
+            - '--advertise-client-urls=http://etcd4:2379'
             - '--heartbeat-interval=250'
             - '--election-timeout=1250'
-            - '--initial-cluster=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380,etcd-4=http://etcd-4:2380,etcd-5=http://etcd-5:2380'
+            - '--initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380'
             - '--initial-cluster-state=new'
-            - '--initial-cluster-token=postgres_etcd_ha'
+            - '--initial-cluster-token=pgha'
         networks:
           net1:
             priority: 1000
@@ -121,31 +119,28 @@ services:
             - 2379
         volumes:
             - etcd4:/etcd_data
-        hostname: etcd-4
-        container_name: pgha-etcd-4
+        hostname: etcd4
+        container_name: pgha-etcd4 
 
-    etcd-5:
-        depends_on:
-          - etcd-1
-          - etcd-2
-          - etcd-3
-          - etcd-4
+
+
+    etcd5:
         image: pgha-etcd-3.5
         restart: unless-stopped
         environment:
-          ENDPOINTS: etcd-1:2380,etcd-2:2380,etcd-3:2380,etcd-4:2380,etcd-5:2380
+          ENDPOINTS: etcd1:2380,etcd2:2380,etcd3:2380,etcd4:2380,etcd5:2380
         command:
             - '/usr/bin/etcd'
-            - '--name=etcd-5'
-            - '--initial-advertise-peer-urls=http://etcd-5:2380'
+            - '--name=etcd5'
+            - '--initial-advertise-peer-urls=http://etcd5:2380'
             - '--listen-peer-urls=http://0.0.0.0:2380'
             - '--listen-client-urls=http://0.0.0.0:2379'
-            - '--advertise-client-urls=http://etcd-5:2379'
+            - '--advertise-client-urls=http://etcd5:2379'
             - '--heartbeat-interval=250'
             - '--election-timeout=1250'
-            - '--initial-cluster=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380,etcd-4=http://etcd-4:2380,etcd-5=http://etcd-5:2380'
+            - '--initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380'
             - '--initial-cluster-state=new'
-            - '--initial-cluster-token=postgres_etcd_ha'
+            - '--initial-cluster-token=pgha'
         networks:
           net1:
             priority: 1000
@@ -155,26 +150,29 @@ services:
             - 2379
         volumes:
             - etcd5:/etcd_data
-        hostname: etcd-5
-        container_name: pgha-etcd-5
+        hostname: etcd5
+        container_name: pgha-etcd5 
 
-    pg1:
-        depends_on:
-          - etcd-1
-          - etcd-2
-          - etcd-3
-          - etcd-4
-          - etcd-5
+
+
+
+    pg1-node1:
+        depends_on: 
+          - etcd1
+          - etcd2
+          - etcd3
+          - etcd4
+          - etcd5
         environment:
-          ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
+          ETCD_NODES: etcd1:2379,etcd2:2379,etcd3:2379,etcd4:2379,etcd5:2379
           NODE_NAME: pg1-node1
-          CFG_DIR: /pg_ha/config
-          PATRONI_CFG: /pg_ha/config/patroni.conf
-          DATADIR: /pgdata
+          CFG_DIR: /pgha/config
+          PATRONI_CFG: /pgha/config/patroni.conf
+          DATADIR: /pgdata/16
           PG_BIN_DIR: /usr/lib/postgresql/16/bin
-          NAMESPACE: pg_ha
-          SCOPE: pg_ha_cluster
-          STANZA_NAME: pg_ha_db
+          NAMESPACE: pgha
+          SCOPE: pgha_cluster
+          STANZA_NAME: pgha_db
           PGBACKREST_SERVER: pgbackrest
 
         image: pgha-pg16-patroni
@@ -190,31 +188,34 @@ services:
           net3:
             priority: 10
         ports:
-          - "50551:5432"
+          - 50551:5432
         volumes:
-          - pg1data:/pgdata
-          - pg1home:/var/lib/postgresql
-          - pg1conf:/pg_ha/config
+          - pg1-node1-data:/pgdata
+          - pg1-node1-home:/var/lib/postgresql
+          - pg1-node1-conf:/pgha/config
         hostname: pg1-node1
         container_name: pgha-pg1-node1
-    pg2:
-        depends_on:
-          - etcd-1
-          - etcd-2
-          - etcd-3
-          - etcd-4
-          - etcd-5
-          - pg1
+
+
+
+
+    pg1-node2:
+        depends_on: 
+          - etcd1
+          - etcd2
+          - etcd3
+          - etcd4
+          - etcd5
         environment:
-          ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
+          ETCD_NODES: etcd1:2379,etcd2:2379,etcd3:2379,etcd4:2379,etcd5:2379
           NODE_NAME: pg1-node2
-          CFG_DIR: /pg_ha/config
-          PATRONI_CFG: /pg_ha/config/patroni.conf
-          DATADIR: /pgdata
+          CFG_DIR: /pgha/config
+          PATRONI_CFG: /pgha/config/patroni.conf
+          DATADIR: /pgdata/16
           PG_BIN_DIR: /usr/lib/postgresql/16/bin
-          NAMESPACE: pg_ha
-          SCOPE: pg_ha_cluster
-          STANZA_NAME: pg_ha_db
+          NAMESPACE: pgha
+          SCOPE: pgha_cluster
+          STANZA_NAME: pgha_db
           PGBACKREST_SERVER: pgbackrest
 
         image: pgha-pg16-patroni
@@ -230,32 +231,34 @@ services:
           net3:
             priority: 10
         ports:
-          - "50552:5432"
+          - 50552:5432
         volumes:
-          - pg2data:/pgdata
-          - pg2home:/var/lib/postgresql
-          - pg2conf:/pg_ha/config
+          - pg1-node2-data:/pgdata
+          - pg1-node2-home:/var/lib/postgresql
+          - pg1-node2-conf:/pgha/config
         hostname: pg1-node2
         container_name: pgha-pg1-node2
 
-    pg3:
-        depends_on:
-          - etcd-1
-          - etcd-2
-          - etcd-3
-          - etcd-4
-          - etcd-5
-          - pg1
+
+
+
+    pg2-node1:
+        depends_on: 
+          - etcd1
+          - etcd2
+          - etcd3
+          - etcd4
+          - etcd5
         environment:
-          ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
+          ETCD_NODES: etcd1:2379,etcd2:2379,etcd3:2379,etcd4:2379,etcd5:2379
           NODE_NAME: pg2-node1
-          CFG_DIR: /pg_ha/config
-          PATRONI_CFG: /pg_ha/config/patroni.conf
-          DATADIR: /pgdata
+          CFG_DIR: /pgha/config
+          PATRONI_CFG: /pgha/config/patroni.conf
+          DATADIR: /pgdata/16
           PG_BIN_DIR: /usr/lib/postgresql/16/bin
-          NAMESPACE: pg_ha
-          SCOPE: pg_ha_cluster
-          STANZA_NAME: pg_ha_db
+          NAMESPACE: pgha
+          SCOPE: pgha_cluster
+          STANZA_NAME: pgha_db
           PGBACKREST_SERVER: pgbackrest
 
         image: pgha-pg16-patroni
@@ -271,32 +274,34 @@ services:
           net3:
             priority: 10
         ports:
-          - "50553:5432"
+          - 50553:5432
         volumes:
-          - pg3data:/pgdata
-          - pg3home:/var/lib/postgresql
-          - pg3conf:/pg_ha/config
+          - pg2-node1-data:/pgdata
+          - pg2-node1-home:/var/lib/postgresql
+          - pg2-node1-conf:/pgha/config
         hostname: pg2-node1
         container_name: pgha-pg2-node1
 
-    pg4:
-        depends_on:
-          - etcd-1
-          - etcd-2
-          - etcd-3
-          - etcd-4
-          - etcd-5
-          - pg1
+
+
+
+    pg2-node2:
+        depends_on: 
+          - etcd1
+          - etcd2
+          - etcd3
+          - etcd4
+          - etcd5
         environment:
-          ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
+          ETCD_NODES: etcd1:2379,etcd2:2379,etcd3:2379,etcd4:2379,etcd5:2379
           NODE_NAME: pg2-node2
-          CFG_DIR: /pg_ha/config
-          PATRONI_CFG: /pg_ha/config/patroni.conf
-          DATADIR: /pgdata
+          CFG_DIR: /pgha/config
+          PATRONI_CFG: /pgha/config/patroni.conf
+          DATADIR: /pgdata/16
           PG_BIN_DIR: /usr/lib/postgresql/16/bin
-          NAMESPACE: pg_ha
-          SCOPE: pg_ha_cluster
-          STANZA_NAME: pg_ha_db
+          NAMESPACE: pgha
+          SCOPE: pgha_cluster
+          STANZA_NAME: pgha_db
           PGBACKREST_SERVER: pgbackrest
 
         image: pgha-pg16-patroni
@@ -312,33 +317,34 @@ services:
           net3:
             priority: 10
         ports:
-          - "50554:5432"
+          - 50554:5432
         volumes:
-          - pg4data:/pgdata
-          - pg4home:/var/lib/postgresql
-          - pg4conf:/pg_ha/config
+          - pg2-node2-data:/pgdata
+          - pg2-node2-home:/var/lib/postgresql
+          - pg2-node2-conf:/pgha/config
         hostname: pg2-node2
         container_name: pgha-pg2-node2
 
 
-    pg5:
-        depends_on:
-          - etcd-1
-          - etcd-2
-          - etcd-3
-          - etcd-4
-          - etcd-5
-          - pg1
+
+
+    pg3-node1:
+        depends_on: 
+          - etcd1
+          - etcd2
+          - etcd3
+          - etcd4
+          - etcd5
         environment:
-          ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
+          ETCD_NODES: etcd1:2379,etcd2:2379,etcd3:2379,etcd4:2379,etcd5:2379
           NODE_NAME: pg3-node1
-          CFG_DIR: /pg_ha/config
-          PATRONI_CFG: /pg_ha/config/patroni.conf
-          DATADIR: /pgdata
+          CFG_DIR: /pgha/config
+          PATRONI_CFG: /pgha/config/patroni.conf
+          DATADIR: /pgdata/16
           PG_BIN_DIR: /usr/lib/postgresql/16/bin
-          NAMESPACE: pg_ha
-          SCOPE: pg_ha_cluster
-          STANZA_NAME: pg_ha_db
+          NAMESPACE: pgha
+          SCOPE: pgha_cluster
+          STANZA_NAME: pgha_db
           PGBACKREST_SERVER: pgbackrest
 
         image: pgha-pg16-patroni
@@ -354,33 +360,34 @@ services:
           net3:
             priority: 1000
         ports:
-          - "50555:5432"
+          - 50555:5432
         volumes:
-          - pg5data:/pgdata
-          - pg5home:/var/lib/postgresql
-          - pg5conf:/pg_ha/config
+          - pg3-node1-data:/pgdata
+          - pg3-node1-home:/var/lib/postgresql
+          - pg3-node1-conf:/pgha/config
         hostname: pg3-node1
         container_name: pgha-pg3-node1
 
 
-    pg6:
-        depends_on:
-          - etcd-1
-          - etcd-2
-          - etcd-3
-          - etcd-4
-          - etcd-5
-          - pg1
+
+
+    pg3-node2:
+        depends_on: 
+          - etcd1
+          - etcd2
+          - etcd3
+          - etcd4
+          - etcd5
         environment:
-          ETCD_NODES: etcd-1:2379,etcd-2:2379,etcd-3:2379,etcd-4:2379,etcd-5:2379
+          ETCD_NODES: etcd1:2379,etcd2:2379,etcd3:2379,etcd4:2379,etcd5:2379
           NODE_NAME: pg3-node2
-          CFG_DIR: /pg_ha/config
-          PATRONI_CFG: /pg_ha/config/patroni.conf
-          DATADIR: /pgdata
+          CFG_DIR: /pgha/config
+          PATRONI_CFG: /pgha/config/patroni.conf
+          DATADIR: /pgdata/16
           PG_BIN_DIR: /usr/lib/postgresql/16/bin
-          NAMESPACE: pg_ha
-          SCOPE: pg_ha_cluster
-          STANZA_NAME: pg_ha_db
+          NAMESPACE: pgha
+          SCOPE: pgha_cluster
+          STANZA_NAME: pgha_db
           PGBACKREST_SERVER: pgbackrest
 
         image: pgha-pg16-patroni
@@ -396,26 +403,28 @@ services:
           net3:
             priority: 1000
         ports:
-          - "50556:5432"
+          - 50556:5432
         volumes:
-          - pg6data:/pgdata
-          - pg6home:/var/lib/postgresql
-          - pg6conf:/pg_ha/config
+          - pg3-node2-data:/pgdata
+          - pg3-node2-home:/var/lib/postgresql
+          - pg3-node2-conf:/pgha/config
         hostname: pg3-node2
         container_name: pgha-pg3-node2
 
+
+
     pgbackrest:
-        environment:
+        environment: 
           NODE1: pg1-node1
           NODE2: pg1-node2
           NODE3: pg2-node1
           NODE4: pg2-node2
           NODE5: pg3-node1
           NODE6: pg3-node2
-          CFG_DIR: /pg_ha/config
-          REPO_PATH: /pg_ha/pgbackrest
+          CFG_DIR: /pgha/config
+          REPO_PATH: /pgha/pgbackrest
           DATADIR: /pgdata
-          STANZA_NAME: pg_ha_db
+          STANZA_NAME: pgha_db
           PGPORT: 5432
 
         image: pgha-pgbackrest
@@ -428,58 +437,62 @@ services:
           net3:
             priority: 10
         volumes:
-          - pgbackrest:/pg_ha/pgbackrest
-          - pghome:/var/lib/postgresql
+          - pgbackrest-data:/pgha/pgbackrest
+          - pgbackrest-home:/var/lib/postgresql
         hostname: pgbackrest
         container_name: pgha-pgbackrest
         cap_add:
           - SYS_ADMIN
         entrypoint: /entrypoint.sh
 
-networks:
-  net1:
-    name: dockerNet1
-    external: true
-  net2:
-    name: dockerNet2
-    external: true
-  net3:
-    name: dockerNet3
-    external: true
 
-volumes:
+volumes: 
     etcd1:
     etcd2:
     etcd3:
     etcd4:
-    etcd5:
+    etcd5: 
+    pg1-node1-data:
+    pg1-node1-home:
+    pg1-node1-conf:
+    pg1-node2-data:
+    pg1-node2-home:
+    pg1-node2-conf:
+    pg2-node1-data:
+    pg2-node1-home:
+    pg2-node1-conf:
+    pg2-node2-data:
+    pg2-node2-home:
+    pg2-node2-conf:
+    pg3-node1-data:
+    pg3-node1-home:
+    pg3-node1-conf:
+    pg3-node2-data:
+    pg3-node2-home:
+    pg3-node2-conf:
+    pg4-node1-data:
+    pg4-node1-home:
+    pg4-node1-conf:
+    pg4-node2-data:
+    pg4-node2-home:
+    pg4-node2-conf:
+    pg5-node1-data:
+    pg5-node1-home:
+    pg5-node1-conf:
+    pg5-node2-data:
+    pg5-node2-home:
+    pg5-node2-conf:
+    pg6-node1-data:
+    pg6-node1-home:
+    pg6-node1-conf:
+    pg6-node2-data:
+    pg6-node2-home:
+    pg6-node2-conf: 
+    pgbackrest-data:
+    pgbackrest-home: 
 
-    pg1data:
-    pg1conf:
-    pg1home:
-
-    pg2data:
-    pg2conf:
-    pg2home:
-
-    pg3data:
-    pg3conf:
-    pg3home:
-
-    pg4data:
-    pg4conf:
-    pg4home:
-
-    pg5data:
-    pg5conf:
-    pg5home:
-
-    pg6data:
-    pg6conf:
-    pg6home:
-
-    pgbackrest:
-    pghome:
-
-
+networks:
+    net1:
+    net2:
+    net3:
 

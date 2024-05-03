@@ -24,9 +24,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt install -y pgbackrest
 
 RUN DEBIAN_FRONTEND=noninteractive rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /pg_ha/config
-RUN mkdir -p /pg_ha/pgbackrest
-RUN chown -R postgres:postgres /pg_ha
+RUN mkdir -p /pgha/config
+RUN mkdir -p /pgha/pgbackrest
+RUN chown -R postgres:postgres /pgha
 
 RUN mkdir /var/lib/postgresql/.ssh
 RUN chown -R postgres:postgres /var/lib/postgresql/.ssh
