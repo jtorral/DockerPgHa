@@ -14,35 +14,28 @@ log-level-console=detail
 log-level-file=detail
 start-fast=y
 delta=y
-backup-standby=y
+backup-standby=n
 
 [${STANZA_NAME}]
 
-pg1-host=${NODE1}
-pg1-port=${PGPORT}
-pg1-path=${DATADIR}
-
-pg2-host=${NODE2}
-pg2-port=${PGPORT}
-pg2-path=${DATADIR}
-
-pg3-host=${NODE3}
-pg3-port=${PGPORT}
-pg3-path=${DATADIR}
-
-pg4-host=${NODE4}
-pg4-port=${PGPORT}
-pg4-path=${DATADIR}
-
-pg5-host=${NODE5}
-pg5-port=${PGPORT}
-pg5-path=${DATADIR}
-
-pg6-host=${NODE6}
-pg6-port=${PGPORT}
-pg6-path=${DATADIR}
-
 " > ${CFG_DIR}/pgbackrest.conf
+
+
+
+### Add the hostnames to the config file based on created nodes 
+### We look at the environment varibales to determine the node.
+### It is set in the maindocker-compose file that kicks off everything
+
+nodeList=$(env | grep -E 'NODE[0-9]+' | sort | awk -F '=' '{print $2}')
+counter=1
+for nodeName in $nodeList
+do
+   echo -e "pg${counter}-host=${nodeName}" >> ${CFG_DIR}/pgbackrest.conf
+   echo -e "pg${counter}-port=${PGPORT}" >> ${CFG_DIR}/pgbackrest.conf
+   echo -e "pg${counter}-path=${DATADIR}" >> ${CFG_DIR}/pgbackrest.conf
+   echo -e >> ${CFG_DIR}/pgbackrest.conf
+   counter=$(( $counter + 1 ))
+done
 
 ### This sym link part is important ###
 

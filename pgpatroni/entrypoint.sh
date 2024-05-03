@@ -33,8 +33,8 @@ bootstrap:
                 max_replication_slots: 10
                 wal_log_hints: on
                 archive_mode: on
-                archive_command: /bin/true
-                #archive_command: pgbackrest --stanza=${STANZA_NAME} archive-push \"${DATADIR}/pg_wal/%f\"
+                #archive_command: /bin/true
+                archive_command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} archive-push \"${DATADIR}/pg_wal/%f\"
                 archive_timeout: 1800s
                 logging_collector: 'on'
                 log_line_prefix: '%m [%r] [%p]: [%l-1] user=%u,db=%d,host=%h '
@@ -44,9 +44,10 @@ bootstrap:
                 log_min_duration_statement: 1000
                 max_wal_size: 1GB
 
-            #recovery_conf:
-                #recovery_target_timeline: latest
-                #restore_command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} archive-get %f \"%p\"
+            recovery_conf:
+                recovery_target_timeline: latest
+                restore_command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} archive-get %f "%p"
+
 
             use_pg_rewind: true
             use_slots: true
@@ -99,6 +100,10 @@ postgresql:
         command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=stanza=${STANZA_NAME} restore --type=delta
         keep_data: True
         no_params: True
+
+    recovery_conf:
+        recovery_target_timeline: latest
+        restore_command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} archive-get %f \"%p\"
 
     basebackup:
         checkpoint: 'fast'
