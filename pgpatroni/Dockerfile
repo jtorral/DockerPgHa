@@ -58,6 +58,11 @@ RUN chmod +x entrypoint.sh
 
 COPY pgbackrestRestore.sh /pgha/config/
 RUN chmod +x /pgha/config/pgbackrestRestore.sh
+
+COPY restoremeOnStartup /pgha/config/
+RUN chmod +x /pgha/config/restoremeOnStartup
+
 RUN chown -R postgres:postgres /pgha
+
 
 EXPOSE 5432

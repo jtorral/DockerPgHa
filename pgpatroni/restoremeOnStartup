@@ -1,0 +1,24 @@
+#!/bin/bash
+
+su -c "touch ${CFG_DIR}/restoreme" postgres
+
+echo -e
+echo -e "======================================================================================================="
+echo -e "- Don't forget to shut down all replica nodes prior to restarting this one."
+echo -e
+echo -e "- You will need to reinit the replicas to sync up with a newly restored primary with a different timeline."
+echo -e "- Below are the commands for reinitializing other cluster. Feel free to use or run your own."
+echo -e "- Reinitilaze the members after the restored server shows Leader and running status."
+
+echo -e
+
+cluster=$(patronictl -c ${CFG_DIR}/patroni.conf list | grep Cluster | awk '{print $3}')
+memberlist=$(patronictl -c ${CFG_DIR}/patroni.conf list | grep -v `hostname` | grep Replica | awk '{print $2}')
+for member in $memberlist
+do
+   echo "patronictl -c ${CFG_DIR}/patroni.conf reinit $cluster $member --force"
+done
+
+echo -e
+
+echo -e "======================================================================================================="
