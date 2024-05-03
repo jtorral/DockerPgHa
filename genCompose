@@ -52,10 +52,13 @@ buildDependList() {
    pgDependList="depends_on: "
 
    ### lets add etcd nodes first
-   for (( x=1; x<=$etcdNeeded; x++ ))
-   do
-      pgDependList="${pgDependList}|          - etcd${x}"
-   done
+   ### Also add capabaility of not adding the etcd nodes with a -1 value passed
+   if [ $skip -ne -1 ]; then
+      for (( x=1; x<=$etcdNeeded; x++ ))
+      do
+         pgDependList="${pgDependList}|          - etcd${x}"
+      done
+   fi
 
    ### lets add pg nodes now
 
@@ -75,6 +78,7 @@ buildDependList() {
          ### pgDependList="${pgDependList}|          - ${nodeName}${x}-node${p}"
       ### done
    ### done
+
 }
 
 
@@ -324,7 +328,10 @@ echo "
 ### ---  generate pgbackrest service block
 buildPgbackrestService() {
 
-   ### ---  Environment variables for pgbackrest block
+   ### Lets aadd a depends_on for pg so we can start it and create stanza
+   ### Pass a -1 so it does not create depends on etcd
+   buildDependList -1 
+
    pgBackrestEnvList="environment: "
    nodeCount=1
 
@@ -342,10 +349,12 @@ buildPgbackrestService() {
    ### ---  Once again, formatting for yaml. There has to be a better way !!!!
    IFS='%'
    pgBackrestEnvList=$(echo $pgBackrestEnvList | tr "|" "\n")
+   pgDependList=$(echo $pgDependList | tr "|" "\n")
    unset IFS
 
 echo -e "
     pgbackrest:
+        ${pgDependList}
         ${pgBackrestEnvList}
           CFG_DIR: /pgha/config
           REPO_PATH: /pgha/pgbackrest

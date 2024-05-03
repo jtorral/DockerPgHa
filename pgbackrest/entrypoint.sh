@@ -49,6 +49,26 @@ chown -R postgres:postgres /pgha
 echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config
 /usr/sbin/sshd
 
+
+# -- do ssh stuf above first so you can login without prompts
+
+### Create stanza if it does not exist
+
+stanzaStatus=$(su -c 'pgbackrest --stanza=$STANZA_NAME info' postgres | grep 'missing stanza path' | wc -l)
+if [ ${stanzaStatus} -eq 1 ]; then
+   ### Lets try a few times while giving container time to start
+   for (( x=1; x<=10; x++ ))
+   do
+      su -c 'pgbackrest --stanza=${STANZA_NAME} stanza-create' postgres
+      if [ $? -ne 0 ]; then
+         sleep 15
+      else
+         break
+      fi
+   done
+fi
+
+
 # -- keep container running for testing
 tail -f /dev/null
 
