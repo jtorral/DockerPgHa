@@ -258,26 +258,52 @@ will be placed in the folder.
 
 When the container is restarted, the presence of that trigger file will cause the data directory to be cleaned out and repopulated with the latest backup. 
 
-**Make sure to read the output from the restoremeOnStartup script.**
+Make sure to read the output from the restoremeOnStartup script. It has some additional informative information on the REST API calls to Patroni along with the restore process instructions.
+
+####  Output from restoreOnStartop and Process for restoring
 
 ```
-=======================================================================================================
-Don't forget to shut down all replica nodes prior to restarting this one.
+************* READ THIS *****************
 
-You will need to reinit the replicas to sync up with a newly restored primary with a different timeline
-Below are the commands for reinitializing other clusters. Feel free to use or run your own
-Reinitilaze the members after the restored server shows Leader and running status
+Copy these commands and shut down the replica containers before restarting pgha-pg1-node1
 
-patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node2 --force
-patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node3 --force
-patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node4 --force
-patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node5 --force
-patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node6 --force
-patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node7 --force
-patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node8 --force
-patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node9 --force
+        docker stop pgha-pg1-node2
+        docker stop pgha-pg2-node1
+        docker stop pgha-pg2-node2
+        docker stop pgha-pg3-node1
+        docker stop pgha-pg3-node2
 
-=======================================================================================================
+When all replicas are shut down and you validate the only Patroni member running as a Leader is pg1-node1 then you can restart pgha-pg1-node1
+
+When pg1-node1 is back on line as a running Leader, restart the replicas.
+
+        docker start pgha-pg1-node2
+        docker start pgha-pg2-node1
+        docker start pgha-pg2-node2
+        docker start pgha-pg3-node1
+        docker start pgha-pg3-node2
+
+When replicas are online, you can use the following curl commands to reinitialze all the replicas one at a time.
+
+        - Note:
+        - You must run these from inside one of the containers
+        - The replicas should fail to fully come online. Once they are visible in the patronictl list, reinitialize them.
+
+        curl -s http://pg1-node2:8008/reinitialize -XPOST -d '{"force":"true"}'
+        curl -s http://pg2-node1:8008/reinitialize -XPOST -d '{"force":"true"}'
+        curl -s http://pg2-node2:8008/reinitialize -XPOST -d '{"force":"true"}'
+        curl -s http://pg3-node1:8008/reinitialize -XPOST -d '{"force":"true"}'
+        curl -s http://pg3-node2:8008/reinitialize -XPOST -d '{"force":"true"}'
+
+        Or you can use the patronictl commands below.
+
+        patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node2 --force
+        patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg2-node1 --force
+        patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg2-node2 --force
+        patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg3-node1 --force
+        patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg3-node2 --force
+
+        ***** If you change your mind, remove the file /pgha/config/restoreme *****
 ```
 
 #### Want to perform a backup ?
