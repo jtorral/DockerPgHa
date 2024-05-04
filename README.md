@@ -233,6 +233,8 @@ When the container is restarted, the presence of that trigger file will cause th
 
 Make sure to read the output from the restoremeOnStartup script.
 
+**Run this on a Leader**
+
 ```
 =======================================================================================================
 Don't forget to shut down all replica nodes prior to restarting this one.
