@@ -134,7 +134,7 @@ Some nifty features include the ability to
 
 1. create the necessary number of etcd containers for the number of nodes you create.
 2. If you specify multiple data centers, a priority to a specific network is given.
-3. specify how many data centers4. how many nodes per data center.
+3. specify how many data centers. 
 4. name your postgres containers.
 
 When naming a postgres container, it really means a prefix for the container name because genCompose will generate the name with a specific format.
@@ -164,7 +164,7 @@ As each node gets added to the docker-compose file, priority is given to the net
 2. pg2 nodes would be prioritized to net2
 3. pg3 nodes would be prioritized to net3
 
-Additional data centers woudl loop around net1 through 3.  
+Additional data centers woud loop around net1 through 3.  
 Feel free to modify the genCompose script and add additional networks and change the priority logic.
 
 The script adds **depends_on** sections to the postgres and pgbackrest service.
