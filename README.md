@@ -4,7 +4,7 @@ The following is for dockerizing a simulated multi data center Postgres 16 on Ub
 
 You have the ability to generate docker-compose files for x number of data centers and x number of nodes per data center.
 
-Below is a TL;DR section followed by a more detailed planation of what is happening.
+Below is a TL;DR section followed by a more detailed explanation of what is happening.
 
 
 
