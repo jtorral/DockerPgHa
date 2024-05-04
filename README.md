@@ -124,7 +124,11 @@ Prior to building your images, generate an ssh key that you will copy into all t
 
 **The ssh keys in this repo were generated inside a docker container and have no existence outside of them and have since been trashed. Feel free to use them.**
 
-sshd is started at the command line ```/usr/sbin/sshd``` rather than running under systemd.
+sshd is started at the command line 
+```
+/usr/sbin/sshd
+``` 
+rather than running under systemd.
 
 ### Docker images
 
@@ -515,3 +519,5 @@ server must be in hot standby mode
 #### prefer-standby
 first try to find a standby server, but if none of the listed hosts is a standby server, try again in any mode
 
+
+**More updates to follow ...**
