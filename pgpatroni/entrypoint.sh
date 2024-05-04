@@ -48,7 +48,6 @@ bootstrap:
                 recovery_target_timeline: latest
                 restore_command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} archive-get %f "%p"
 
-
             use_pg_rewind: true
             use_slots: true
 

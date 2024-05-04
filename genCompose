@@ -453,3 +453,8 @@ if [ $totalNodes -lt 2 ]; then
 fi
 
 genComposeFile
+
+echo
+echo "*** $composeFile created ***"
+echo
+

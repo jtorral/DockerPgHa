@@ -25,6 +25,7 @@ From inside the pgbackrest folder ...
 From the main folder
 
 We will generate containers for 2 centers with 2 nodes each using the docker-compose file generator
+
 ```./genCompose -npg -d2 -p2 -v16```
 
 ```
