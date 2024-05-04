@@ -232,7 +232,7 @@ If you log into a container and execute ```/pgha/config/restoremeOnStartup``` a 
 
 When the container is restarted, the presence of that trigger file will cause the data directory to be cleaned out and repopulated with the latest backup. 
 
-Make sure to read the output from the restoremeOnStartup script.
+**Make sure to read the output from the restoremeOnStartup script.**
 
 ```
 =======================================================================================================
