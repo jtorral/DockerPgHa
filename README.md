@@ -12,21 +12,29 @@ Below is a TL;DR section followed by a more detailed explanation of what is happ
 
 From inside the etcd folder  ...
 
-``` docker build -t pgha-etcd-3.5 . ```
+```
+docker build -t pgha-etcd-3.5 . 
+```
 
 From inside the pgpatroni folder ...
 
-```docker build -t pgha-pg16-patroni .```
+```
+docker build -t pgha-pg16-patroni .
+```
 
 From inside the pgbackrest folder ...
 
-```docker build -t pgha-pgbackrest .```
+```
+docker build -t pgha-pgbackrest .
+```
 
 From the main folder
 
 We will generate containers for 2 centers with 2 nodes each using the docker-compose file generator
 
-```./genCompose -npg -d2 -p2 -v16```
+```
+./genCompose -npg -d2 -p2 -v16
+```
 
 ```
 Usage:
@@ -43,11 +51,15 @@ Usage:
 
 From the main folder
 
-```docker-compose create```
+```
+docker-compose create
+```
 
 Followed by
 
-```docker-compose start```
+```
+docker-compose start
+```
 
 You should now be able to access the containers
 
@@ -223,12 +235,22 @@ If the stanza does not exist, pgbackrest will attempt to create it 10 times with
 
 You could manually create it with the following command.  **Remember all pgbackrest commands must be run as user postgres.**
 
-```docker exec -it pgha-pgbackrest su -c 'pgbackrest --stanza=${STANZA_NAME} stanza-create' postgres```
+```
+docker exec -it pgha-pgbackrest su -c 'pgbackrest --stanza=${STANZA_NAME} stanza-create' postgres
+```
 
 
 #### Backup restores
 
-If you log into a container and execute ```/pgha/config/restoremeOnStartup``` a trigger file named ```restoreme``` will be placed in the folder.
+If you log into a container and execute 
+```
+/pgha/config/restoremeOnStartup
+``` 
+a trigger file named 
+```
+restoreme
+``` 
+will be placed in the folder.
 
 When the container is restarted, the presence of that trigger file will cause the data directory to be cleaned out and repopulated with the latest backup. 
 
@@ -256,7 +278,9 @@ patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node9 --force
 
 #### Want to perform a backup ?
 
-```docker exec -it pgha-pgbackrest su -c 'pgbackrest --stanza=${STANZA_NAME} --type=full backup' postgres```
+```
+docker exec -it pgha-pgbackrest su -c 'pgbackrest --stanza=${STANZA_NAME} --type=full backup' postgres
+```
 
 ```
 .
@@ -274,7 +298,9 @@ patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node9 --force
 
 #### Want to check your backup repo?
 
-```docker exec -it pgha-pgbackrest su -c 'pgbackrest --stanza=${STANZA_NAME} info' postgres```
+```
+docker exec -it pgha-pgbackrest su -c 'pgbackrest --stanza=${STANZA_NAME} info' postgres
+```
 
 ```
 stanza: pgha_db
@@ -306,7 +332,9 @@ The patroni config file is in /pgha/config/patroni.conf
 #### Want to see which server is the primary server?
 
 Pick any pg container and run 
-```docker exec -it pgha-pg1-node1 patronictl -c /pgha/config/patroni.conf list```
+```
+docker exec -it pgha-pg1-node1 patronictl -c /pgha/config/patroni.conf list
+```
 
 ```
 + Cluster: pgha_cluster (7364915463012110378) +----+-----------+
@@ -328,7 +356,9 @@ Pick any pg container and run
 
 Pick any running pg container and run ...
 
-```docker exec -it pgha-pg1-node1 patronictl -c /pgha/config/patroni.conf failover --candidate=pg1-node4 --force```
+```
+docker exec -it pgha-pg1-node1 patronictl -c /pgha/config/patroni.conf failover --candidate=pg1-node4 --force
+```
 
 ```
 + Cluster: pgha_cluster (7364915463012110378) +----+-----------+
@@ -351,7 +381,9 @@ Pick any running pg container and run ...
 
 Pick any running pg container and run ...
 
-```docker exec -it pgha-pg1-node1 patronictl -c /pgha/config/patroni.conf show-config```
+```
+docker exec -it pgha-pg1-node1 patronictl -c /pgha/config/patroni.conf show-config
+```
 
 ```
 loop_wait: 10
@@ -392,11 +424,15 @@ For example check the status like this using the ENDPOINTS env
 
 Log onto any etcd container
 
-```docker exec -it pgha-etcd2 /bin/bash```
+```
+docker exec -it pgha-etcd2 /bin/bash
+```
 
 and run
 
-```etcdctl --write-out=table --endpoints=$ENDPOINTS endpoint status```
+```
+etcdctl --write-out=table --endpoints=$ENDPOINTS endpoint status
+```
 
 ```
 +------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
@@ -421,7 +457,9 @@ Rather than using a third party tool such as haproxy to manage and load balance 
 
 Connect to a primary (r/w) node from the list of hosts specified in the string. In our docker environment, we are running this command from inside one of the containers.
 
-```psql 'host=pg1-node1,pg1-node2,pg1-node3,pg1-node4,pg1-node5,pg1-node6,pg1-node7,pg1-node8,pg1-node9 user=postgres password=postgres target_session_attrs=primary'```
+```
+psql 'host=pg1-node1,pg1-node2,pg1-node3,pg1-node4,pg1-node5,pg1-node6,pg1-node7,pg1-node8,pg1-node9 user=postgres password=postgres target_session_attrs=primary'
+```
 
 ```
 psql 'host=pg1-node1,pg1-node2,pg1-node3,pg1-node4,pg1-node5,pg1-node6,pg1-node7,pg1-node8,pg1-node9 user=postgres password=postgres target_session_attrs=primary'
