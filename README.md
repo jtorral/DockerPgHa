@@ -361,7 +361,7 @@ docker exec -it pgha-pg1-node1 patronictl -c /pgha/config/patroni.conf list
 Pick any running pg container and run ...
 
 ```
-docker exec -it pgha-pg1-node1 patronictl -c /pgha/config/patroni.conf failover --candidate=pg1-node4 --force
+docker exec -it pgha-pg1-node1 patronictl -c /pgha/config/patroni.conf switchover --leader=pg1-node1 --candidate=pg1-node4 --force 
 ```
 
 ```

@@ -1,24 +1,97 @@
 #!/bin/bash
 
-su -c "touch ${CFG_DIR}/restoreme" postgres
+
+function getLeader() {
+        Leader=$(curl -s http://localhost:8008/cluster  | jq -r '.members[] | select(.role=="leader") | .name')
+}
+
+
+function reinitCommands() {
+        replicaList=$(curl -s http://localhost:8008/cluster  | jq -r '.members[] | select(.role=="replica") | .name')
+        cluster=$(curl -s http://localhost:8008/cluster  | jq -r .scope )
+
+        thisContainer="pgha-${thisHost}"
+
+        printf "\n\n\n\n************* READ THIS *****************"
+        printf "\n\nCopy these commands and shut down the replica containers before restarting %s\n" $thisContainer
+
+        for node in $replicaList
+        do
+                container="pgha-${node}"
+                printf "\n\tdocker stop %s" $container
+        done
+
+        printf "\n\nWhen all replicas are shut down and you validate the only Patroni member running as a Leader is %s then you can restart %s\n\n" $thisHost $thisContainer
+        printf "When %s is back on line as a running Leader, restart the replicas.\n" $thisHost
+
+        for node in $replicaList
+        do
+                container="pgha-${node}"
+                printf "\n\tdocker start %s" $container
+        done
+
+        printf "\n\nWhen replicas are online, you can use the following curl commands to reinitialze all the replicas one at a time.\n\n"
+        printf "\t- Note:\n"
+        printf "\t- You must run these from inside one of the containers\n"
+        printf "\t- The replicas should fail to fully come online. Once they are visible in the patronictl list, reinitialize them.\n"
+
+        for node in $replicaList
+        do
+                printf "\n\tcurl -s http://%s:8008/reinitialize -XPOST -d '{\"force\":\"true\"}'" $node
+        done
+
+        printf "\n\n\tOr you can use the patronictl commands below.\n"
+
+        for node in $replicaList
+        do
+                printf "\n\tpatronictl -c %s/patroni.conf reinit %s %s --force" ${CFG_DIR} $cluster $node
+        done
+
+        printf "\n\n\t***** If you change your mind, remove the file %s *****\n" $CFG_DIR/restoreme
+}
+
+
+
+function createTrigger() {
+
+   su -c "touch ${CFG_DIR}/restoreme" postgres
+
+   reinitCommands
+
+   echo -e
+   echo -e
+   echo -e
+
+}
+
+
+thisHost=$(hostname)
+Leader=$(curl -s http://localhost:8008/cluster  | jq -r '.members[] | select(.role=="leader") | .name')
+
+if [ "${Leader}" != "${thisHost}" ]; then
+      printf "\n\n\n\n\nThis (%s) is not the Leader (%s). Run command on (%s) or promote (%s) to a Leader and try again.\n" $thisHost $Leader $Leader $thisHost
+      printf "\n\nThe REST API call below will promote %s to a Leader without prompting. " $thisHost
+      printf "\n\n\tcurl -s http://localhost:8008/switchover -XPOST -d '{\"leader\":\"%s\", \"candidate\":\"%s\"}'" $Leader $thisHost
+      printf "\n\nOr you can you patronictl with prompts."
+      printf "\n\n\tpatronictl -c %s/patroni.conf switchover --leader=%s --candidate=%s" ${CFG_DIR} $Leader $thisHost
+
+      printf "\n\nExiting ..\n\n"
+      exit 1
+fi
+
 
 echo -e
-echo -e "======================================================================================================="
-echo -e "- Don't forget to shut down all replica nodes prior to restarting this one."
 echo -e
-echo -e "- You will need to reinit the replicas to sync up with a newly restored primary with a different timeline."
-echo -e "- Below are the commands for reinitializing other cluster. Feel free to use or run your own."
-echo -e "- Reinitilaze the members after the restored server shows Leader and running status."
-
+echo -e "******* Make sure you have a backup before resarting this container if you answer yes below *******"
+echo -e
+read -p "Create ${CFG_DIR}/restoreme ? This will force a database restore when the container is restarted. (yes/no) " yn
+echo -e
 echo -e
 
-cluster=$(patronictl -c ${CFG_DIR}/patroni.conf list | grep Cluster | awk '{print $3}')
-memberlist=$(patronictl -c ${CFG_DIR}/patroni.conf list | grep -v `hostname` | grep Replica | awk '{print $2}')
-for member in $memberlist
-do
-   echo "patronictl -c ${CFG_DIR}/patroni.conf reinit $cluster $member --force"
-done
-
-echo -e
-
-echo -e "======================================================================================================="
+case $yn in
+        yes ) createTrigger;;
+        no ) printf "\nExit\n\n"
+                exit 0;;
+        * ) printf "\nInvalid response. \"yes\" or \"no\" required. Exiting.\n\n"
+                exit 1;;
+esac
