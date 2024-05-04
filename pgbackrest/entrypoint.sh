@@ -14,7 +14,7 @@ log-level-console=detail
 log-level-file=detail
 start-fast=y
 delta=y
-backup-standby=n
+backup-standby=y
 
 [${STANZA_NAME}]
 
