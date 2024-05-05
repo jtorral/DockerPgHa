@@ -457,6 +457,10 @@ fi
 
 ## Lets find used ports
 usedPort=$(docker ps --format "{{.Ports}}" | grep ":" | grep 5432 | awk -F ":" '{print $2}' | awk -F "-" '{print $1}' | sort | tail -1)
+if [ -z $usedPort ]; then
+   usedPort=50550
+fi
+
 checkNumber $usedPort usedPort
 startingPort=$(( $usedPort + 10 ))
 
