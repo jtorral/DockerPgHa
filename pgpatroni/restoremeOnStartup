@@ -65,6 +65,15 @@ function createTrigger() {
 }
 
 
+cmd=$(echo  "pgbackrest --output=json --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} info  | jq -r .[].repo[].status.message | grep \"no valid backups\" | wc -l")
+
+backupExists=$(runuser -l postgres -c "$cmd")
+
+if [ $backupExists -eq 1 ]; then
+        printf "\n\n\nThere are no backups in the repoistory.\n\nExiting\n\n"
+        exit
+fi
+
 thisHost=$(hostname)
 Leader=$(curl -s http://localhost:8008/cluster  | jq -r '.members[] | select(.role=="leader") | .name')
 
