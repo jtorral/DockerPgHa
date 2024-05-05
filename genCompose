@@ -437,9 +437,9 @@ if [ -z "$nodeName" ] || [ -z "$pgMajor" ]; then
    usage
 fi
 
-checkNumber $pgMajor pgMajor
-checkNumber $numDatacenters numDatacenters
-checkNumber $nodesPerDataCenter nodesPerDataCenter
+checkNumber $pgMajor "-v"
+checkNumber $numDatacenters "-d"
+checkNumber $nodesPerDataCenter "-c"
 
 maxNodes=9
 totalNodes=$(($numDatacenters * $nodesPerDataCenter))
@@ -461,7 +461,7 @@ if [ -z $usedPort ]; then
    usedPort=50550
 fi
 
-checkNumber $usedPort usedPort
+checkNumber $usedPort "port check (usedPort)"
 startingPort=$(( $usedPort + 10 ))
 
 genComposeFile
