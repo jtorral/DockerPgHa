@@ -33,20 +33,20 @@ From the main folder
 We will generate containers for 2 centers with 2 nodes each using the docker-compose file generator
 
 ```
-./genCompose -npg -d2 -p2 -v16
+./genCompose -n pg -d 2 -c 2 -v16
 ```
 
 ```
 Usage:
-       ./genCompose [OPTION]
+       ./genCompose [OPTION]
 
-       -d Number of data centers to simulate. (default = 1)
-       -p number of nodes per data center. (default = 2)
-       -n Prefix name to use for db container.
-       -v Postgres Major version number. i.e 16
+       -d Number of data centers to simulate. (default = 1)
+       -c number of nodes per data center. (default = 2)
+       -n Prefix name to use for db container.
+       -v Postgres Major version number. i.e 16
 
-       Number of db nodes is capped at 9. So (-d * -p) should be <= 9
-       Number of etcd nodes are calculated on (-d * -p ) / 2 + 1
+       Number of db nodes is capped at 9. So (-d * -c) should be <= 9
+       Number of etcd nodes are calculated on (-d * -c ) / 2 + 1
 ```
 
 From the main folder
