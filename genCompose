@@ -22,6 +22,7 @@ function usage() {
 }
 
 
+
 ### ---  Establish number of etcd nodes needed
 function etcdHostsNeeded() {
    etcdNeeded=$(( ($totalNodes / 2) + 1))
