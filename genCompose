@@ -7,12 +7,12 @@ function usage() {
         echo -e "       $0 [OPTION]"
         echo -e
         echo -e "       -d Number of data centers to simulate. (default = 1)"
-        echo -e "       -p number of nodes per data center. (default = 2)"
+        echo -e "       -c number of nodes per data center. (default = 2)"
         echo -e "       -n Prefix name to use for db container."
         echo -e "       -v Postgres Major version number. i.e 16"
         echo -e
-        echo -e "       Number of db nodes is capped at 9. So (-d * -p) should be <= 9 "
-        echo -e "       Number of etcd nodes are calculated on (-d * -p ) / 2 + 1 "
+        echo -e "       Number of db nodes is capped at 9. So (-d * -c) should be <= 9 "
+        echo -e "       Number of etcd nodes are calculated on (-d * -c ) / 2 + 1 "
         echo -e
         if [ ! -z "$usageMessage" ]; then
            echo -e "${usageMessage}"
@@ -172,7 +172,7 @@ buildPgService() {
    esac
 
    ### ---  lets generate unique ports to assign 
-   portMap=$(( 50550 + $nc ))
+   portMap=$(( startingPort + $nc ))
 
    ### ---  Preseve spaces in variable. Stupid yaml !!!!!
    ### ---  And put line breaks in there
@@ -388,11 +388,12 @@ echo -e "
 ### ---  Validate its a number
 function checkNumber() {
         num=$1
+        var=$2
         valid=0
         regexp='^[0-9]+$'
         if ! [[ $num =~ $regexp ]] ; then
            echo -e
-           echo -e "Invalid number format of \"$num\" entered. Please correct and try again"
+           echo -e "Invalid number format of \"$num\" entered for \"$var\". Please correct and try again"
            echo -e
            exit
         fi
@@ -417,13 +418,13 @@ nodeName=""
 numDatacenters="1"
 nodesPerDataCenter=2
 
-while getopts n:d:p:v: name
+while getopts n:d:c:v: name
 do
    case $name in
       n) nodeName="$OPTARG";;
       v) pgMajor="$OPTARG";;
       d) numDatacenters="$OPTARG";;
-      p) nodesPerDataCenter="$OPTARG";;
+      c) nodesPerDataCenter="$OPTARG";;
       *) usage;;
       ?) usage;;
    esac
@@ -435,9 +436,9 @@ if [ -z "$nodeName" ] || [ -z "$pgMajor" ]; then
    usage
 fi
 
-checkNumber $pgMajor
-checkNumber $numDatacenters
-checkNumber $nodesPerDataCenter
+checkNumber $pgMajor pgMajor
+checkNumber $numDatacenters numDatacenters
+checkNumber $nodesPerDataCenter nodesPerDataCenter
 
 maxNodes=9
 totalNodes=$(($numDatacenters * $nodesPerDataCenter))
@@ -451,6 +452,12 @@ if [ $totalNodes -lt 2 ]; then
    usageMessage="You must have at least 2 nodes for Patroni. You have specified $numDatacenters data center and $nodesPerDataCenter node per data center."
    usage
 fi
+
+
+## Lets find used ports
+usedPort=$(docker ps --format "{{.Ports}}" | grep ":" | grep 5432 | awk -F ":" '{print $2}' | awk -F "-" '{print $1}' | sort | tail -1)
+checkNumber $usedPort usedPort
+startingPort=$(( $usedPort + 10 ))
 
 genComposeFile
 
