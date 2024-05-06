@@ -30,7 +30,7 @@ docker build -t pgha-pgbackrest .
 
 From the main folder
 
-We will generate containers for 2 centers with 2 nodes each using the docker-compose file generator
+We will generate containers for 2 data centers with 2 nodes each using the docker-compose file generator
 
 ```
 ./genCompose -n pg -d 2 -c 2 -v16
@@ -147,16 +147,16 @@ pgha-etcd-3.5           latest         edab3b23c2c4   3 hours ago   �
 ### genCompose
 
 The genCompose file lets you generate docker-compose.yaml files for your desired environment.
-Some nifty features include the ability to
 
-1. create the necessary number of etcd containers for the number of nodes you create.
-2. If you specify multiple data centers, a priority to a specific network is given.
-3. specify how many data centers. 
+1. etcd containers are created based on your choice below
+2. Specify the number of data centers to simulate (-d). Docker nertwork is assignbed based on dc number..
+3. specify the number of postgres containers per data center (-c). Default is 2.
 4. name your postgres containers.
+5. Specify the version of postgres. Used vor data directory. ( Will automate this eventually )
 
 When naming a postgres container, it really means a prefix for the container name because genCompose will generate the name with a specific format.
 
-For example,  If you were to specify the name **pg** and 2 datacenters with 2 nodes per data center, genCompose would create the following nodes.
+For example,  If you were to specify the name **pg** and 2 data centers with 2 nodes per data center, genCompose would create the following nodes.
 
 1. pg1-node1
 2. pg1-node2
@@ -165,11 +165,11 @@ For example,  If you were to specify the name **pg** and 2 datacenters with 2 n
 
 You create a node name of "dude" you would get
 
-dude1-node1  and so on ...
+dude1-node1, dude1-node2  and so on ...
 
 the number after the name prefix is synonymous with a data center. So, pg1 would reside in data center 1.
 
-genCompose builds 3 networks within the docker environment,
+genCompose builds 3 networks within the docker environment.
 
 1. net1
 2. net2
@@ -185,12 +185,14 @@ Additional data centers woud loop around net1 through 3.  
 Feel free to modify the genCompose script and add additional networks and change the priority logic.
 
 The script adds **depends_on** sections to the postgres and pgbackrest service.
-Postgres depends on etcd services to be running prior to starting
-Postgres depends on pg1 postgres to be running as well.
+Postgres depends on etcd services to be running prior to starting.
+Postgres, (except for first node in first dc) depends on pg1 postgres to be running as well.
+
 
 Keep in mind, depends_on is not the best way to specify startup order. Health checks should be used.
 
 Additionally, genCompose assigns static port mapping to postgres containers so you can consistently access them with the same connection string.
+genCompose trys to identify the highest port number already mapped to 5432 in your environment and create maps higher than that.
 
 ### The running environment
 
