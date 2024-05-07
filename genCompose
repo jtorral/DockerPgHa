@@ -455,14 +455,20 @@ if [ $totalNodes -lt 2 ]; then
 fi
 
 
+
 ## Lets find used ports
 usedPort=$(docker ps --format "{{.Ports}}" | grep ":" | grep 5432 | awk -F ":" '{print $2}' | awk -F "-" '{print $1}' | sort | tail -1)
 if [ -z $usedPort ]; then
-   usedPort=50550
+   usedPort=55432
 fi
 
 checkNumber $usedPort "port check (usedPort)"
-startingPort=$(( $usedPort + 10 ))
+if [ $usedPort -gt 55432 ]; then
+   startingPort=$(( $usedPort + 1 ))
+else
+   startingPort=55432
+fi
+
 
 genComposeFile
 
