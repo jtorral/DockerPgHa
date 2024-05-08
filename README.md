@@ -255,7 +255,7 @@ If the stanza does not exist, pgbackrest will attempt to create it 10 times with
 You could manually create it with the following command.  **Remember all pgbackrest commands must be run as user postgres.**
 
 ```
-docker exec -it pgha-pgbackrest sudo -u postgres pgbackrest --stanza=${STANZA_NAME} stanza-create
+docker exec -it pgha-pgbackrest sudo -u postgres pgbackrest --config=/pgha/config/pgbackrest.conf --stanza=pgha_db
 ```
 
 
@@ -325,7 +325,7 @@ If you change your mind, remove the trigger file /pgha/config/restoreme *****
 #### Want to perform a backup ?
 
 ```
-docker exec -it pgha-pgbackrest sudo -u postgres pgbackrest --stanza=${STANZA_NAME} --type=full backup
+docker exec -it pgha-pgbackrest sudo -u postgres pgbackrest --config=/pgha/config/pgbackrest.conf --stanza=pgha_db --type=full backup
 ```
 
 ```
@@ -345,7 +345,7 @@ docker exec -it pgha-pgbackrest sudo -u postgres pgbackrest --stanza=${STANZA_NA
 #### Want to check your backup repo?
 
 ```
-docker exec -it pgha-pgbackrest sudo -u postgres pgbackrest --stanza=${STANZA_NAME} info
+docker exec -it pgha-pgbackrest sudo -u postgres pgbackrest --config=/pgha/config/pgbackrest.conf --stanza=pgha_db info
 ```
 
 ```
