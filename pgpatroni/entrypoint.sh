@@ -96,7 +96,7 @@ postgresql:
         - basebackup
 
     pgbackrest:
-        command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=stanza=${STANZA_NAME} restore --type=delta
+        command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=stanza=${STANZA_NAME} --delta restore 
         keep_data: True
         no_params: True
 
@@ -171,10 +171,10 @@ if [ -f "${CFG_DIR}/restoreme" ]; then
 else
         ### -- start patroni
         if [ ${BACKGROUND} -eq 1 ]; then 
-           su -c 'nohup /usr/bin/patroni ${CFG_DIR}/patroni.conf &' postgres
+           sudo -u postgres nohup /usr/bin/patroni ${CFG_DIR}/patroni.conf &
            tail -f /dev/null
         else 
-           su -c '/usr/bin/patroni ${CFG_DIR}/patroni.conf ' postgres
+           sudo -u postgres /usr/bin/patroni ${CFG_DIR}/patroni.conf 
         fi
 fi
 

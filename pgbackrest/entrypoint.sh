@@ -54,12 +54,12 @@ echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config
 
 ### Create stanza if it does not exist
 
-stanzaStatus=$(su -c 'pgbackrest --stanza=$STANZA_NAME info' postgres | grep 'missing stanza path' | wc -l)
+stanzaStatus=$(sudo -u postgres pgbackrest --stanza=$STANZA_NAME info | grep 'missing stanza path' | wc -l)
 if [ ${stanzaStatus} -eq 1 ]; then
    ### Lets try a few times while giving container time to start
    for (( x=1; x<=10; x++ ))
    do
-      su -c 'pgbackrest --stanza=${STANZA_NAME} stanza-create' postgres
+      sudo -u postgres pgbackrest --stanza=${STANZA_NAME} stanza-create
       if [ $? -ne 0 ]; then
          sleep 15
       else

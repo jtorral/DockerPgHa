@@ -21,19 +21,24 @@ function reinitCommands() {
                 printf "\n\tdocker stop %s" $container
         done
 
-        printf "\n\nWhen all replicas are shut down and you validate the only Patroni member running as a Leader is %s then you can restart %s\n\n" $thisHost $thisContainer
-        printf "When %s is back on line as a running Leader, restart the replicas.\n" $thisHost
-
+        printf "\n\nValidate all replicas are down and %s is running as the Leader\n" $thisHost
+        printf "\n\tpatronictl -c ${CFG_DIR}/patroni.conf list\n"
+        printf "\nBefore restarting %s.\n" $thisContainer
+        printf "\n\tdocker restart %s \n" $thisContainer
+        printf "\nWhen %s is back on line and running as a Leader again, restart the replicas.\n" $thisHost
+        printf "\n\tdocker exec -it %s patronictl -c ${CFG_DIR}/patroni.conf list\n" $thisContainer
+        printf "\nRestart the replicas\n"
         for node in $replicaList
         do
                 container="pgha-${node}"
                 printf "\n\tdocker start %s" $container
         done
 
-        printf "\n\nWhen replicas are online, you can use the following curl commands to reinitialze all the replicas one at a time.\n\n"
+        printf "\n\nIf there are error and the replica does not come online, you can reinitilaze them with the following commands.\n\n"
         printf "\t- Note:\n"
+        printf "\t- Depending on the size of the database, this could take time.\n"
+        printf "\t- Consider logging into the conatiner and checking the logs before reinitilizing.\n"
         printf "\t- You must run these from inside one of the containers\n"
-        printf "\t- The replicas should fail to fully come online. Once they are visible in the patronictl list, reinitialize them.\n"
 
         for node in $replicaList
         do
@@ -44,17 +49,17 @@ function reinitCommands() {
 
         for node in $replicaList
         do
-                printf "\n\tpatronictl -c %s/patroni.conf reinit %s %s --force" ${CFG_DIR} $cluster $node
+                printf "\n\tpatronictl -c %s reinit %s %s --force" ${CFG_DIR}/patroni.conf $cluster $node
         done
 
-        printf "\n\n\t***** If you change your mind, remove the file %s *****\n" $CFG_DIR/restoreme
+        printf "\n\nIf you change your mind, remove the trigger file %s *****\n" $CFG_DIR/restoreme
 }
 
 
 
 function createTrigger() {
 
-   su -c "touch ${CFG_DIR}/restoreme" postgres
+   sudo -u postgres touch ${CFG_DIR}/restoreme
 
    reinitCommands
 
@@ -89,12 +94,8 @@ if [ "${Leader}" != "${thisHost}" ]; then
 fi
 
 
-echo -e
-echo -e
-echo -e "******* Make sure you have a backup before resarting this container if you answer yes below *******"
-echo -e
+printf  "\n\nMake sure you have a backup before resarting this container if you answer yes below\n\n"
 read -p "Create ${CFG_DIR}/restoreme ? This will force a database restore when the container is restarted. (yes/no) " yn
-echo -e
 echo -e
 
 case $yn in
@@ -104,3 +105,5 @@ case $yn in
         * ) printf "\nInvalid response. \"yes\" or \"no\" required. Exiting.\n\n"
                 exit 1;;
 esac
+
+echo -e

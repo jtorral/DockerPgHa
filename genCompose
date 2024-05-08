@@ -418,7 +418,8 @@ function checkIp() {
 
 function checkUsed() {
    usedPorts=$(docker ps --format "{{.Ports}}" | grep ":" | grep 5432 | awk -F ":" '{print $2}' | awk -F "-" '{print $1}' | sort | tail -1)
-   usedContainers=$(docker ps --format "{{.Names}}" | awk -F "-" '{print $2}' | sort | tail -1)
+   #comment for now. Not fully used yet
+   #usedContainers=$(docker ps --format "{{.Names}}" | awk -F "-" '{print $2}' | sort | tail -1)
 }
 
 composeFile='docker-compose.yaml'
@@ -470,12 +471,14 @@ if [ -z $usedPorts ]; then
    usedPorts=5432
 fi
 
-if [ -z $usedContainers ]; then
-   usedContainers=0
-fi
+#Comment for now. Not fully used yet
+#if [ -z $usedContainers ]; then
+   #usedContainers=0
+#fi
 
 checkNumber $usedPorts "Port check (usedPort)"
-checkNumber $usedContainers "Container number (usedContainers)"
+#Comment for now. Not fully used yet
+#checkNumber $usedContainers "Container number (usedContainers)"
 
 if [ $usedPorts -gt 5432 ]; then
    startingPort=$(( $usedPorts + 1 ))
@@ -483,11 +486,12 @@ else
    startingPort=5432
 fi
 
-if [ $usedContainers -ge 1 ]; then
-   containerNumber=$(( $usedContainers + 1 ))
-else
-   containerNumber=1
-fi
+#Comment for now. Not fully used yet
+#if [ $usedContainers -ge 1 ]; then
+   #containerNumber=$(( $usedContainers + 1 ))
+#else
+   #containerNumber=1
+#fi
 
 
 genComposeFile
