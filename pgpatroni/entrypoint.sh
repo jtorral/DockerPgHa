@@ -44,9 +44,9 @@ bootstrap:
                 log_min_duration_statement: 1000
                 max_wal_size: 1GB
 
-            recovery_conf:
-                recovery_target_timeline: latest
-                restore_command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} archive-get %f "%p"
+            #recovery_conf:
+                #recovery_target_timeline: latest
+                #restore_command: pgbackrest --config=${CFG_DIR}/pgbackrest.conf --stanza=${STANZA_NAME} archive-get %f "%p"
 
             use_pg_rewind: true
             use_slots: true
@@ -106,6 +106,7 @@ postgresql:
 
     basebackup:
         checkpoint: 'fast'
+        wal-method: 'stream'
 
 tags:
     nofailover: false
@@ -169,7 +170,12 @@ if [ -f "${CFG_DIR}/restoreme" ]; then
         ${CFG_DIR}/pgbackrestRestore.sh
 else
         ### -- start patroni
-        su -c '/usr/bin/patroni ${CFG_DIR}/patroni.conf' postgres
+        if [ ${BACKGROUND} -eq 1 ]; then 
+           su -c 'nohup /usr/bin/patroni ${CFG_DIR}/patroni.conf &' postgres
+           tail -f /dev/null
+        else 
+           su -c '/usr/bin/patroni ${CFG_DIR}/patroni.conf ' postgres
+        fi
 fi
 
 

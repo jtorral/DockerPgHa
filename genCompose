@@ -8,8 +8,10 @@ function usage() {
         echo -e
         echo -e "       -d Number of data centers to simulate. (default = 1)"
         echo -e "       -c number of nodes per data center. (default = 2)"
-        echo -e "       -n Prefix name to use for db container."
+        echo -e "       -n Prefix name to use for db connertainer."
         echo -e "       -v Postgres Major version number. i.e 16"
+        echo -e "       -b Start patroni in background and keep container running even if it stops. "
+        echo -e "          Good for upgrades and maintenance tasks." 
         echo -e
         echo -e "       Number of db nodes is capped at 9. So (-d * -c) should be <= 9 "
         echo -e "       Number of etcd nodes are calculated on (-d * -c ) / 2 + 1 "
@@ -198,6 +200,7 @@ echo "
           SCOPE: pgha_cluster
           STANZA_NAME: pgha_db
           PGBACKREST_SERVER: pgbackrest
+          BACKGROUND: $backGround
 
         image: pgha-pg16-patroni
         restart: unless-stopped
@@ -413,17 +416,23 @@ function checkIp() {
 }
 
 
+function checkUsed() {
+   usedPorts=$(docker ps --format "{{.Ports}}" | grep ":" | grep 5432 | awk -F ":" '{print $2}' | awk -F "-" '{print $1}' | sort | tail -1)
+   usedContainers=$(docker ps --format "{{.Names}}" | awk -F "-" '{print $2}' | sort | tail -1)
+}
 
 composeFile='docker-compose.yaml'
 nodeName=""
 numDatacenters="1"
 nodesPerDataCenter=2
+backGround=0
 
-while getopts n:d:c:v: name
+while getopts bn:d:c:v: name
 do
    case $name in
       n) nodeName="$OPTARG";;
       v) pgMajor="$OPTARG";;
+      b) backGround="1";;
       d) numDatacenters="$OPTARG";;
       c) nodesPerDataCenter="$OPTARG";;
       *) usage;;
@@ -431,7 +440,6 @@ do
    esac
 done
 shift $(($OPTIND - 1))
-
 
 if [ -z "$nodeName" ] || [ -z "$pgMajor" ]; then
    usage
@@ -457,16 +465,28 @@ fi
 
 
 ## Lets find used ports
-usedPort=$(docker ps --format "{{.Ports}}" | grep ":" | grep 5432 | awk -F ":" '{print $2}' | awk -F "-" '{print $1}' | sort | tail -1)
-if [ -z $usedPort ]; then
-   usedPort=55432
+checkUsed
+if [ -z $usedPorts ]; then
+   usedPorts=5432
 fi
 
-checkNumber $usedPort "port check (usedPort)"
-if [ $usedPort -gt 55432 ]; then
-   startingPort=$(( $usedPort + 1 ))
+if [ -z $usedContainers ]; then
+   usedContainers=0
+fi
+
+checkNumber $usedPorts "Port check (usedPort)"
+checkNumber $usedContainers "Container number (usedContainers)"
+
+if [ $usedPorts -gt 5432 ]; then
+   startingPort=$(( $usedPorts + 1 ))
 else
-   startingPort=55432
+   startingPort=5432
+fi
+
+if [ $usedContainers -ge 1 ]; then
+   containerNumber=$(( $usedContainers + 1 ))
+else
+   containerNumber=1
 fi
 
 
