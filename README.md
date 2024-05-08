@@ -259,7 +259,7 @@ docker exec -it pgha-pgbackrest sudo -u postgres pgbackrest --stanza=${STANZA_NA
 ```
 
 
-#### Backup and restores
+### Backup and restores
 
   
 
