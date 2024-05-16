@@ -164,12 +164,21 @@ function buildPgNodeNames() {
 
 # -- Build string of pgbackrest node names to use. In reality just 1. But you never know
 function builPgBackrestNodeNames() {
+   # -- Only one bgbackrest server is actually needed. 
+   # -- So, just hardcoding the name here
    pgBackrestNeeded=1
-   pgBackrestNameList=""
-   for (( x=1; x<=$pgBackrestNeeded; x++ ))
-   do
-      pgBackrestNameList="${pgBackrestNameList} pgbackrest${x}-${containerNumber}"
-   done
+   pgBackrestNameList="pgbackrest1-${containerNumber}"
+   pgBackrestNodeName="pgbackrest1-${containerNumber}"
+
+   # -- If you want to use the loop to build the server name, just uncomment the code below
+   # -- Which is what is used for building multiple server names for etcd and pg servers 
+
+   #pgBackrestNeeded=1
+   #pgBackrestNameList=""
+   #for (( x=1; x<=$pgBackrestNeeded; x++ ))
+   #do
+      #pgBackrestNameList="${pgBackrestNameList} pgbackrest${x}-${containerNumber}"
+   #done
 }
 
 
@@ -257,12 +266,13 @@ buildPgBackrestService() {
 
    local nodeCount
    local pgNode
+   local backrestNode
    nodeCount=1
    pgBackrestEnvList="environment:"
 
-   for pgBackrestNode in ${pgBackrestNameList};
+   for backrestNode in ${pgBackrestNameList};
    do
-      buildDependList $pgBackrestNode "noetcd"
+      buildDependList $backrestNode "noetcd"
 
       # -- Lets build the pgBackrest node lists that will be used for the config
       for pgNode in ${pgNameList};
@@ -273,7 +283,7 @@ buildPgBackrestService() {
 
 
 echo -e "
-  ${pgBackrestNode}:
+  ${backrestNode}:
     ${pgDependList}
     ${pgBackrestEnvList}
       CFG_DIR: /pgha/config
@@ -292,10 +302,10 @@ echo -e "
       net3-${containerNumber}:
         priority: 10
     volumes:
-      - ${pgBackrestNode}-data:/pgha/pgbackrest
-      - ${pgBackrestNode}-home:/var/lib/postgresql
-    hostname: ${pgBackrestNode}
-    container_name: ${pgBackrestNode}
+      - ${backrestNode}-data:/pgha/pgbackrest
+      - ${backrestNode}-home:/var/lib/postgresql
+    hostname: ${backrestNode}
+    container_name: ${backrestNode}
     cap_add:
       - SYS_ADMIN
     entrypoint: /entrypoint.sh
@@ -424,7 +434,7 @@ echo -e "
       NAMESPACE: pgha
       SCOPE: pgha_cluster
       STANZA_NAME: pgha_db
-      PGBACKREST_SERVER: pgbackrest
+      PGBACKREST_SERVER: ${pgBackrestNodeName}
       BACKGROUND: $backGround
 
     image: pgha-pg16-patroni
@@ -558,12 +568,11 @@ fi
 echo "services:"  > $composeFile
 
 buildEtcdNodeNames
-buildEtcdService
-
 buildPgNodeNames
-buildPgService
-
 builPgBackrestNodeNames
+
+buildEtcdService
+buildPgService
 buildPgBackrestService
 
 buildVolumes
