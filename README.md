@@ -13,8 +13,6 @@ Below is a TL;DR section followed by a more detailed explanation of what is happ
 
 
 **At a minimum, use docker-compose version 1.29.2. Using an older version may generate errors when you try to run the docker-compose.yaml file**
-
-
  
 
 From inside the etcd folder  ...
