@@ -665,6 +665,15 @@ postgres=# select pg_is_in_recovery();
 (1 row)
 ```
 
+Additionally, you can select a host from the connection list of hosts at random with the following option in your connection string.
+
+```
+load_balance_hosts=random
+```
+
+In future versions, a weight option is expected.
+
+
 The following are the target session attribute options currently available in Postgres 16. For the online documentation, visit https://www.postgresql.org/docs/current/libpq-connect.html
 
 
