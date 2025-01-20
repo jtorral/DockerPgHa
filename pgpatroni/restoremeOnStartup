@@ -10,28 +10,29 @@ function reinitCommands() {
         replicaList=$(curl -s http://localhost:8008/cluster  | jq -r '.members[] | select(.role=="replica") | .name')
         cluster=$(curl -s http://localhost:8008/cluster  | jq -r .scope )
 
-        thisContainer="pgha-${thisHost}"
+        thisContainer="${thisHost}"
 
         printf "\n\n\n\n************* READ THIS *****************"
         printf "\n\nCopy these commands and shut down the replica containers before restarting %s\n" $thisContainer
 
         for node in $replicaList
         do
-                container="pgha-${node}"
+                container="${node}"
                 printf "\n\tdocker stop %s" $container
         done
 
-        printf "\n\nValidate all replicas are down and %s is running as the Leader\n" $thisHost
-        printf "\n\tpatronictl -c ${CFG_DIR}/patroni.conf list\n"
-        printf "\nBefore restarting %s.\n" $thisContainer
-        printf "\n\tdocker restart %s \n" $thisContainer
+        printf "\n\nValidate all replicas are down and %s is running as the Leader before restarting $thisContainer\n" $thisHost
+        printf "\n\tFrom inside a container you can run:  patronictl -c ${CFG_DIR}/patroni.conf list\n"
+        printf "\n\tFrom outside of container: docker exec -it $thisContainer patronictl -c ${CFG_DIR}/patroni.conf list\n"
+        printf "\nTo restart the container %s.\n" $thisContainer
+        printf "\n\tRun:   docker restart %s \n" $thisContainer
         printf "\nWhen %s is back on line and running as a Leader again, restart the replicas.\n" $thisHost
-        printf "\n\tdocker exec -it %s patronictl -c ${CFG_DIR}/patroni.conf list\n" $thisContainer
-        printf "\nRestart the replicas\n"
+        #printf "\n\tdocker exec -it %s patronictl -c ${CFG_DIR}/patroni.conf list\n" $thisContainer
+        #printf "\nRestart the replicas\n"
         for node in $replicaList
         do
-                container="pgha-${node}"
-                printf "\n\tdocker start %s" $container
+                container="${node}"
+                printf "\n\tRun:   docker start %s" $container
         done
 
         printf "\n\nIf there are error and the replica does not come online, you can reinitilaze them with the following commands.\n\n"
@@ -52,7 +53,12 @@ function reinitCommands() {
                 printf "\n\tpatronictl -c %s reinit %s %s --force" ${CFG_DIR}/patroni.conf $cluster $node
         done
 
-        printf "\n\nIf you change your mind, remove the trigger file %s *****\n" $CFG_DIR/restoreme
+        printf "\n\nIf you change your mind, remove the trigger file %s \n" $CFG_DIR/restoreme
+
+        printf "\n\nReview the log file after startup in %s  \n"  ${CFG_DIR}/${STANZA_NAME}-restore.log
+
+
+
 }
 
 
