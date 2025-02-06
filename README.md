@@ -700,4 +700,27 @@ server must be in hot standby mode
 first try to find a standby server, but if none of the listed hosts is a standby server, try again in any mode
 
 
-**More updates to follow ...**
+## Cleaning up when you are done
+
+When you are done with the containers and no longer need them you can perform the following which will stop and remove the containers.
+
+From within the Docker folder where your docker-compose.yaml file is execute the following.
+
+```
+docker compose down
+```
+
+If you wish to remove the actual volumes created for each container, execute the following.
+
+```
+ docker volume rm $(docker volume ls | grep dockerpgha | awk '{print $2}')
+```
+
+Please note that removing the volumes will remove any data you had saved. If you decide to leave them in place, you can recreate the containers
+and it will use the data that in those volumes.
+
+Also, make sure the docker volume rm above is using grep for specific volume names. If you are addressing different volumes modify your grep command above.
+
+
+
+

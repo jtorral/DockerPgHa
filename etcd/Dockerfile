@@ -18,7 +18,7 @@ RUN DEBIAN_FRONTEND=noninteractive \
 
 RUN DEBIAN_FRONTEND=noninteractive rm -rf /var/lib/apt/lists/*
 
-ENV ETCD_VER=v3.5.13
+ENV ETCD_VER=v3.5.16
 ENV GOOGLE_URL=http://storage.googleapis.com/etcd
 ENV GITHUB_URL=http://github.com/etcd-io/etcd/releases/download
 ENV DOWNLOAD_URL=${GOOGLE_URL}
