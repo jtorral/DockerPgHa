@@ -107,30 +107,66 @@ function checkUsed() {
 
 # -- Determin how many etcd nodes we need
 function etcdHostsNeeded() {
+
    etcdNeeded=$(( ($totalNodes / 2) + 1))
+
    if [ $(($etcdNeeded%2)) -eq 0 ];
    then
        etcdNeeded=$(( $etcdNeeded + 1 ))
    fi
+
+
    if [ $etcdNeeded -lt 3 ]; then
       etcdNeeded=3
    fi
+
+
+   # we are keeping the additional etcd outside of data centers
+   etcdPerDataCenter=$(( ($etcdNeeded / 2) - 1 ))  
+
+   # we making an even number of etcd per data center
+   if [ $(($etcdPerDataCenter%2)) -ne 0 ];
+   then
+       etcdPerDataCenter=$(( $etcdPerDataCenter + 1 ))
+   fi
+
+   if [ $etcdPerDataCenter -eq 0 ];
+   then
+      etcdPerDataCenter=3
+   fi
+   
 }
 
 
 
+# build etcd hosts names based on datacenters and number of etcd per data center
+# structure of name is as follows
+# pgh-etcd<number out of nodes needed>-<datacenter>-<containernumber>
 
-
-# -- Build string of etcd node names to use
+ 
 function buildEtcdNodeNames() {
    etcdHostsNeeded
-   local x
-   etcdNameList=""
-   for (( x=1; x<=$etcdNeeded; x++ ))
+
+   local counter
+   local nn 
+   local dc
+
+   counter=1
+   dc=1
+
+   for (( nn=1; nn<=$etcdNeeded; nn++ ))
    do
-      etcdNameList="${etcdNameList} etcd${x}-${containerNumber}"
+         etcdNameList="${etcdNameList} pgha-etcd${nn}-${dc}-${containerNumber}"
+         counter=$(( counter + 1 ))
+         if [ $counter -gt $etcdPerDataCenter ];
+         then
+            counter=1
+            dc=$(( dc + 1 ))
+         fi
    done
+
 }
+
 
 
 
@@ -145,7 +181,7 @@ function buildPgNodeNames() {
    pgNameList=""
     
    # --- nodeName is provided at command line as argument
-   for (( d=1; d<=$numDatacenters; d++ ))
+   for (( d=1; d<=$numDataCenters; d++ ))
    do
       for (( c=1; c<=$nodesPerDataCenter; c++ ))
       do
@@ -214,7 +250,11 @@ buildEtcdEnv
 
 for etcdNode in ${etcdNameList};
 do
-echo "
+
+# extract the data center out of the node name so we can assign it to the proper network based on data center number
+dataCenter=$( echo $etcdNode | awk -F "-" '{print $3}')
+
+echo -n "
   ${etcdNode}:
     image: pgha-etcd-3.5
     restart: unless-stopped
@@ -233,18 +273,34 @@ echo "
       - '--initial-cluster-state=new'
       - '--initial-cluster-token=pgha'
     networks:
-      net1-${containerNumber}:
-        priority: 1000
-      net2-${containerNumber}:
-        priority: 10
+      pgha-net${dataCenter}-${containerNumber}:
+        priority: 1000 " >> $composeFile
+
+# lets loop through networks
+networksNeeded=$(( numDataCenters + 1 ))
+   
+
+## start with 2 since network 1 is used above as the priority 1000 network and remaining ones are in the loop
+
+startWith=$(( dataCenter + 1 ))
+
+for (( n=$startWith; n<=$networksNeeded; n++ ))
+do   
+   echo -n "
+      pgha-net${n}-${containerNumber}:
+        priority: 10 " >> $composeFile
+done 
+
+
+echo -n "
     ports:
       - 2379
     volumes:
       - ${etcdNode}:/etcd_data
     hostname: ${etcdNode}
-    container_name: ${etcdNode}
-   
-   " >> $composeFile
+    container_name: ${etcdNode} 
+" >> $composeFile
+
 done
 
 }
@@ -321,20 +377,40 @@ echo -e "
 
 
 
-buildNetworks() {
-
+function buildNetworks() {
+   local d
+   local c
+   local nodeCount
+   nodeCount=0
+   pgNameList=""
+     
    networkList="networks: "
 
-   # --  Network creation variables for custom networks
-   networkList="${networkList}\n  net1-${containerNumber}:"
-   networkList="${networkList}\n  net2-${containerNumber}:"
-   networkList="${networkList}\n  net3-${containerNumber}:"
+   # Add one more network for etcd outside of dc's. ( quorum )
+   networksNeeded=$(( numDataCenters + 1 ))  
+
+   for (( d=1; d<=$networksNeeded; d++ ))
+   do
+      networkList="${networkList}\n  pgha-net${d}-${containerNumber}:"
+   done
 
    echo -e "
 $networkList
 " >> $composeFile
 
-}
+}     
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -506,7 +582,7 @@ function checkAlpha() {
 
 composeFile='docker-compose.yaml'
 nodeName=""
-numDatacenters=1
+numDataCenters=1
 nodesPerDataCenter=2
 backGround=0
 
@@ -517,7 +593,7 @@ do
       n) nodeName="$OPTARG";;
       v) pgMajor="$OPTARG";;
       b) backGround="1";;
-      d) numDatacenters="$OPTARG";;
+      d) numDataCenters="$OPTARG";;
       c) nodesPerDataCenter="$OPTARG";;
       *) usage;;
       ?) usage;;
@@ -531,12 +607,12 @@ fi
 
 checkAlpha  $nodeName "-n"
 checkNumber $pgMajor "-v"
-checkNumber $numDatacenters "-d"
+checkNumber $numDataCenters "-d"
 checkNumber $nodesPerDataCenter "-c"
 
 
-maxNodes=9
-totalNodes=$(($numDatacenters * $nodesPerDataCenter))
+maxNodes=12
+totalNodes=$(($numDataCenters * $nodesPerDataCenter))
 
 if [ $totalNodes -gt $maxNodes ]; then
    usageMessage="You have exceeded the max number of nodes (${maxNodes}) allowed. "
@@ -544,7 +620,7 @@ if [ $totalNodes -gt $maxNodes ]; then
 fi
 
 if [ $totalNodes -lt 2 ]; then
-   usageMessage="You must have at least 2 nodes for Patroni. You have specified $numDatacenters data center and $nodesPerDataCenter node per data center."
+   usageMessage="You must have at least 2 nodes for Patroni. You have specified $numDataCenters data center and $nodesPerDataCenter node per data center."
    usage
 fi
 
