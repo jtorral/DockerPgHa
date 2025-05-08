@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# ---------------------------------------------------------------------------------------
+# First rough go at this. Just getting things working will cleanup and use printf instead 
+# for propper formatting
+# ---------------------------------------------------------------------------------------
+
 if [ "$#" -lt 1 ]; then
    echo "Please provide the instance name"
    exit
@@ -44,27 +49,48 @@ for host in $etcdHosts; do
 done
 
 
-echo -e "\tInstance used to query env : $pginstance"
-echo -e "\tPatroni Leader             : $leader"
-echo -e "\tActive Patroni nodes       : $active"
-echo -e "\tDC hosting Patroni Leader  : $dc"
-echo -e "\tDocker containers in DC    : $nodesindc"
+echo -e "\tInstance used to query env  : $pginstance"
+echo -e "\tPatroni Leader              : $leader"
+echo -e "\tActive Patroni nodes        : $active"
+echo -e "\tDC hosting Patroni Leader   : $dc"
+echo -e "\tDocker containers in DC     : $nodesindc"
 echo -e 
+
+
+
+
 echo -e 
 echo -e "Patroni cluster details ...."
 echo -e 
 echo -e 
-
 patroniInfo=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list )
 echo -e "$patroniInfo"
-
 echo -e 
 
+
+
+# Get network details
+echo -e 
+echo -e "Network details ...."
+echo -e 
+echo -e 
+netWorks=$(docker network ls | grep pgha | awk '{ print $2}')
+for netWorkName in $netWorks; do
+   details=$(docker network inspect $netWorkName --format='Subnet: {{range .IPAM.Config}}{{.Subnet}}{{end}}')
+   # A way of removing prefix using parameter expression
+   definedName="${netWorkName#dockerpgha_}" 
+   networkDc=$(echo "$definedName" | sed -n 's/.*net\([0-9]\+\).*/\1/p')
+   echo -e "\tDC $networkDc network is $definedName     : $details"
+done
+echo -e 
+
+
+
+echo -e 
 echo -e "ETCD cluster details ...."
 echo -e 
 echo -e 
-
 etcdStatusCmd="docker exec -it $etcdHost etcdctl --write-out=table --endpoints=$endpoint endpoint status"
-
 $etcdStatusCmd
+echo -e 
 
