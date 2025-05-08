@@ -90,7 +90,51 @@ Now you can connect to a primary database via haproxy like so
 
 To connect to read only, use port 5001
 
+### Added basic script for status
 
+This was a lte night though so it needs to be improved. However, its a good start to getting info about containers.
+
+pghaStat
+
+produces output like this
+
+```
+Please wait while we gather some data ...  
+  
+Instance used to query env : pgha-demo1-1-1  
+Patroni Leader : pgha-demo1-2-1  
+Active Patroni nodes : 6  
+DC hosting Patroni Leader : 2  
+Docker containers in DC : pgha-demo2-2-1 pgha-demo1-2-1 pgha-demo3-2-1 pgha-etcd4-2-1 pgha-etcd3-2-1  
+  
+  
+Patroni cluster details ....  
+  
+  
++ Cluster: pgha_cluster (7501823498374451243) ----------+----+-----------+  
+| Member | Host | Role | State | TL | Lag in MB |  
++----------------+----------------+---------+-----------+----+-----------+  
+| pgha-demo1-1-1 | pgha-demo1-1-1 | Replica | streaming | 7 | 0 |  
+| pgha-demo1-2-1 | pgha-demo1-2-1 | Leader | running | 7 | |  
+| pgha-demo2-1-1 | pgha-demo2-1-1 | Replica | streaming | 7 | 0 |  
+| pgha-demo2-2-1 | pgha-demo2-2-1 | Replica | streaming | 7 | 0 |  
+| pgha-demo3-1-1 | pgha-demo3-1-1 | Replica | streaming | 7 | 0 |  
+| pgha-demo3-2-1 | pgha-demo3-2-1 | Replica | streaming | 7 | 0 |  
++----------------+----------------+---------+-----------+----+-----------+  
+  
+ETCD cluster details ....  
+  
+  
++---------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+  
+| ENDPOINT | ID | VERSION | DB SIZE | IS LEADER | IS LEARNER | RAFT TERM | RAFT INDEX | RAFT APPLIED INDEX | ERRORS |  
++---------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+  
+| pgha-etcd2-1-1:2379 | 856afccebea5e496 | 3.5.13 | 127 kB | false | false | 3 | 344 | 344 | |  
+| pgha-etcd4-2-1:2379 | 4b1ef8498608d2d9 | 3.5.13 | 127 kB | false | false | 3 | 344 | 344 | |  
+| pgha-etcd5-3-1:2379 | 84ca01859d3aca7d | 3.5.13 | 127 kB | false | false | 3 | 344 | 344 | |  
+| pgha-etcd3-2-1:2379 | efa6a64b5fec8ce | 3.5.13 | 127 kB | true | false | 3 | 344 | 344 | |  
+| pgha-etcd1-1-1:2379 | d8637f2e8aa15c2e | 3.5.13 | 127 kB | false | false | 3 | 344 | 344 | |  
++---------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
+```
 
 
   

@@ -28,14 +28,26 @@ dc=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list | 
 
 nodesindc=$(docker ps | grep pgha | grep "\-$dc-1" | awk '{print $NF}' | paste -sd ' ' -)  # The paste joins the lines together
 
+
 etcdHost=$(docker ps | grep "pgha-etcd" | tail -1 | awk '{print $NF}' )
 
+etcdHosts=$(docker ps | grep "pgha-etcd" | awk '{print $NF}' )
 
-echo -e 
+# build the endpoints from etcd hosts
+endpoint=""
+for host in $etcdHosts; do
+   if [ -z "$endpoint" ]; then
+      endpoint="${host}:2379"
+   else 
+     endpoint="${endpoint},${host}:2379"
+   fi
+done
+
+
 echo -e "\tInstance used to query env : $pginstance"
-echo -e "\tLeader                     : $leader"
+echo -e "\tPatroni Leader             : $leader"
 echo -e "\tActive Patroni nodes       : $active"
-echo -e "\tData center hosting Leadr  : $dc"
+echo -e "\tDC hosting Patroni Leader  : $dc"
 echo -e "\tDocker containers in DC    : $nodesindc"
 echo -e 
 echo -e 
@@ -52,5 +64,7 @@ echo -e "ETCD cluster details ...."
 echo -e 
 echo -e 
 
-etcdInfo=$(docker exec -it $etcdHost etcdctl member list)
-echo -e "$etcdInfo"
+etcdStatusCmd="docker exec -it $etcdHost etcdctl --write-out=table --endpoints=$endpoint endpoint status"
+
+$etcdStatusCmd
+
