@@ -48,6 +48,51 @@ Based on the number of data centers we mimic, in order to maintain a quorum we n
 
 Pgbackrest server gets placed on the non data center network
 
+### Optionally run the haproxy instance
+
+Download the pgTraining  repo from here:
+
+https://github.com/jtorral/pgTraining
+
+Follow the instructions to build the image and run the container.
+
+Use the following to get the basic container running
+
+```
+929 docker run -p 5411:5432 -p 5000:5000 -p 5001:5001 --env=PGPASSWORD=postgres -v pg1-pgdata:/pgdata --hostname haProxy --network=dockerpgha_pgha-net1-1 --name=haProxy -dt pg16-rocky8-bundle
+```
+
+Notice, we are attaching to the network defined for our PgHa environment.
+
+After you get it running, connect the additional networks to the container so it is visible to the other servers and vice versa.
+
+```
+docker network connect dockerpgha_pgha-net2-1 haProxy  
+docker network connect dockerpgha_pgha-net3-1 haProxy
+```
+
+Now get the config file set up in ```/etc/haproxy/haproxy.cfg```
+
+The file is can be copied from this repo as well.
+
+```haproxy.cfg.sample```
+
+
+If all goes as planned, start haproxy manually  
+
+```haproxy -V -f /etc/haproxy/haproxy.cfg```
+
+You can run it in the background. The above is for testing
+
+Now you can connect to a primary database via haproxy like so
+
+```psql -h localhost -p 5000 -U postgres```
+
+To connect to read only, use port 5001
+
+
+
+
   
 ## TL;DR;  
   

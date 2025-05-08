@@ -1,0 +1,43 @@
+global
+    maxconn 1000
+
+defaults
+    log global
+    mode tcp
+    retries 2
+    timeout client 30m
+    timeout connect 4s
+    timeout server 30m
+    timeout check 5s
+
+listen stats
+    mode http
+    bind *:7000
+    stats enable
+    stats uri /
+
+listen postgres-patroni
+    bind *:5000
+    option httpchk OPTIONS /primary
+    http-check expect status 200
+    default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
+    server pgha-demo1-1-1 pgha-demo1-1-1:5432 maxconn 1000 check port 8008
+    server pgha-demo2-1-1 pgha-demo2-1-1:5432 maxconn 1000 check port 8008
+    server pgha-demo3-1-1 pgha-demo3-1-1:5432 maxconn 1000 check port 8008
+    server pgha-demo1-2-1 pgha-demo1-2-1:5432 maxconn 1000 check port 8008
+    server pgha-demo2-2-1 pgha-demo2-2-1:5432 maxconn 1000 check port 8008
+    server pgha-demo3-2-1 pgha-demo3-2-1:5432 maxconn 1000 check port 8008
+
+listen postgres-patroni-replica
+    balance leastconn
+    bind *:5001
+    option httpchk OPTIONS /replica
+    http-check expect status 200
+    default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
+    server pgha-demo1-1-1 pgha-demo1-1-1:5432 maxconn 1000 check port 8008
+    server pgha-demo2-1-1 pgha-demo2-1-1:5432 maxconn 1000 check port 8008
+    server pgha-demo3-1-1 pgha-demo3-1-1:5432 maxconn 1000 check port 8008
+    server pgha-demo1-2-1 pgha-demo1-2-1:5432 maxconn 1000 check port 8008
+    server pgha-demo2-2-1 pgha-demo2-2-1:5432 maxconn 1000 check port 8008
+    server pgha-demo3-2-1 pgha-demo3-2-1:5432 maxconn 1000 check port 8008
+
