@@ -1,0 +1,56 @@
+#!/bin/bash
+
+if [ "$#" -lt 1 ]; then
+   echo "Please provide the instance name"
+   exit
+fi
+
+name=$1
+
+echo
+echo "Please wait while we gather some data ..."
+echo
+
+# get any running pg instance
+
+pginstance=$(docker ps | grep pgha | grep $name | tail -1 | awk '{print $NF}')
+
+if [ -z $pginstance ]; then
+   echo "No instances found running"
+   exit
+fi
+
+leader=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list | grep -i leader |  awk '{print $2}')
+
+active=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list | grep -E 'running|streamin' | wc -l)
+
+dc=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list | grep -i leader |  awk '{print $2}' | awk -F "-" '{print $3}')
+
+nodesindc=$(docker ps | grep pgha | grep "\-$dc-1" | awk '{print $NF}' | paste -sd ' ' -)  # The paste joins the lines together
+
+etcdHost=$(docker ps | grep "pgha-etcd" | tail -1 | awk '{print $NF}' )
+
+
+echo -e 
+echo -e "\tInstance used to query env : $pginstance"
+echo -e "\tLeader                     : $leader"
+echo -e "\tActive Patroni nodes       : $active"
+echo -e "\tData center hosting Leadr  : $dc"
+echo -e "\tDocker containers in DC    : $nodesindc"
+echo -e 
+echo -e 
+echo -e "Patroni cluster details ...."
+echo -e 
+echo -e 
+
+patroniInfo=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list )
+echo -e "$patroniInfo"
+
+echo -e 
+
+echo -e "ETCD cluster details ...."
+echo -e 
+echo -e 
+
+etcdInfo=$(docker exec -it $etcdHost etcdctl member list)
+echo -e "$etcdInfo"
