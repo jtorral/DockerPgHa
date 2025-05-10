@@ -75,12 +75,21 @@ echo -e "Network details ...."
 echo -e 
 echo -e 
 netWorks=$(docker network ls | grep pgha | awk '{ print $2}')
+
+lastNetwork=$(echo $netWorks | awk '{print $NF}')
+lastNetwork="${lastNetwork#dockerpgha_}"
+
 for netWorkName in $netWorks; do
    details=$(docker network inspect $netWorkName --format='Subnet: {{range .IPAM.Config}}{{.Subnet}}{{end}}')
    # A way of removing prefix using parameter expression
    definedName="${netWorkName#dockerpgha_}" 
    networkDc=$(echo "$definedName" | sed -n 's/.*net\([0-9]\+\).*/\1/p')
-   echo -e "\tDC $networkDc network is $definedName     : $details"
+   if [ "$definedName" == "$lastNetwork" ];
+   then
+      echo -e "\tNon DC   network is $definedName     : $details"
+   else 
+      echo -e "\t    DC $networkDc network is $definedName     : $details"
+   fi
 done
 echo -e 
 

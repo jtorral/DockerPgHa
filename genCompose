@@ -27,7 +27,7 @@ function usage() {
         echo -e "       -d Number of data centers to simulate. (default = 1)"
         echo -e "       -c number of nodes per data center. (default = 2)"
         echo -e "       -n Prefix name to use for db containers (lower case no special characters)."
-        echo -e "       -v Postgres Major version number. i.e 16"
+        echo -e "       -v Postgres Major version number. i.e 16. -- Used to create datadir and volumes"
         echo -e "       -b Start patroni in background and keep container running even if it stops. "
         echo -e "          Good for upgrades and maintenance tasks." 
         echo -e
@@ -50,7 +50,7 @@ buildDependList() {
 
    # -- Which service block (nodename) are we building this depends on list for?
    buildingListFor=$1
- 
+
    if [ -z $2 ]; then
       addEtcd="etcd"
    else
@@ -60,6 +60,7 @@ buildDependList() {
    local etcdNode
 
    pgDependList="depends_on: "
+
 
    # -- lets add etcd nodes first
    # -- Also add capabaility of not adding the etcd nodes with a value other than "etcd" passed
@@ -72,8 +73,17 @@ buildDependList() {
       done
    fi
 
+
+   # Build list for pgbackrest depends on first pgnode
+
+   #if [ "$buildingListFor" == "$pgBackrestNodeName" ]; then
+      #pgDependList="${pgDependList}\n      - ${firstNode}"
+   #fi
+
    # -- We build the depends_on list of postgres nodes. However, the first node does not  depend on any other node
    # -- So, we skip this for the first node 
+
+
    if [ "$buildingListFor" == "$firstNode" ]; then
       return
    fi
@@ -83,9 +93,6 @@ buildDependList() {
    pgDependList="${pgDependList}\n      - ${firstNode}"
 
 }
-
-
-
 
 
 
@@ -107,32 +114,53 @@ function checkUsed() {
 
 # -- Determin how many etcd nodes we need
 function etcdHostsNeeded() {
-   etcdNeeded=$(( ($totalNodes / 2) + 1))
-   if [ $(($etcdNeeded%2)) -eq 0 ];
-   then
-       etcdNeeded=$(( $etcdNeeded + 1 ))
-   fi
-   if [ $etcdNeeded -lt 3 ]; then
-      etcdNeeded=3
-   fi
+
+  # Two nodes per data center
+  etcdPerDataCenter=2 
+
+  etcdNeeded=$(( $numDataCenters * $etcdPerDataCenter  ))  
+
+  # Quorum is more than half of total members
+  quorumNeeded=$(( ($etcdNeeded / 2 ) + 1))  
+
+  # outside etcd needed worse case scenario with only 1 data center remaining out of x
+  # should be quorumNeeded - etcdPerDataCenter (2) which is the last remaining etcd hosts in the dc
+
+  nonDcEtcd=$(( $quorumNeeded - $etcdPerDataCenter ));
+
+  etcdNeeded=$(( $etcdNeeded + $nonDcEtcd ))
+
 }
 
 
 
+# build etcd hosts names based on datacenters and number of etcd per data center
+# structure of name is as follows
+# pgh-etcd<number out of nodes needed>-<datacenter>-<containernumber>
 
-
-# -- Build string of etcd node names to use
+ 
 function buildEtcdNodeNames() {
    etcdHostsNeeded
-   local x
-   etcdNameList=""
-   for (( x=1; x<=$etcdNeeded; x++ ))
+
+   local counter
+   local nn 
+   local dc
+
+   counter=1
+   dc=1
+
+   for (( nn=1; nn<=$etcdNeeded; nn++ ))
    do
-      etcdNameList="${etcdNameList} etcd${x}-${containerNumber}"
+         etcdNameList="${etcdNameList} pgha-etcd${nn}-${dc}-${containerNumber}"
+         counter=$(( counter + 1 ))
+         if [ $counter -gt $etcdPerDataCenter ];
+         then
+            counter=1
+            dc=$(( dc + 1 ))
+         fi
    done
+
 }
-
-
 
 
 
@@ -144,18 +172,18 @@ function buildPgNodeNames() {
    nodeCount=0
    pgNameList=""
     
-   # --- nodeName is provided at command line as argument
-   for (( d=1; d<=$numDatacenters; d++ ))
+   for (( d=1; d<=$numDataCenters; d++ ))
    do
       for (( c=1; c<=$nodesPerDataCenter; c++ ))
       do
-         nodeCount=$(( $nodeCount + 1 ))
          if [ $d -eq 1 ] && [ $c -eq 1 ]; then
-            firstNode="${nodeName}${d}-${containerNumber}-node${c}"
+            firstNode="pgha-${nodeName}${c}-${d}-${containerNumber}"
          fi
-         pgNameList="${pgNameList} ${nodeName}${d}-${containerNumber}-node${c}"
+         nodeCount=$(( $nodeCount + 1 ))
+         pgNameList="${pgNameList} pgha-${nodeName}${c}-${d}-${containerNumber}"
       done
    done
+
 }
 
 
@@ -163,12 +191,12 @@ function buildPgNodeNames() {
 
 
 # -- Build string of pgbackrest node names to use. In reality just 1. But you never know
-function builPgBackrestNodeNames() {
+function buildPgBackrestNodeNames() {
    # -- Only one bgbackrest server is actually needed. 
    # -- So, just hardcoding the name here
    pgBackrestNeeded=1
-   pgBackrestNameList="pgbackrest1-${containerNumber}"
-   pgBackrestNodeName="pgbackrest1-${containerNumber}"
+   pgBackrestNameList="pgha-pgbackrest-0-${containerNumber}"
+   pgBackrestNodeName="pgha-pgbackrest-0-${containerNumber}"
 
    # -- If you want to use the loop to build the server name, just uncomment the code below
    # -- Which is what is used for building multiple server names for etcd and pg servers 
@@ -180,8 +208,6 @@ function builPgBackrestNodeNames() {
       #pgBackrestNameList="${pgBackrestNameList} pgbackrest${x}-${containerNumber}"
    #done
 }
-
-
 
 
 
@@ -214,7 +240,11 @@ buildEtcdEnv
 
 for etcdNode in ${etcdNameList};
 do
-echo "
+
+# extract the data center out of the node name so we can assign it to the proper network based on data center number
+dataCenter=$( echo $etcdNode | awk -F "-" '{print $3}')
+
+echo -e "
   ${etcdNode}:
     image: pgha-etcd-3.5
     restart: unless-stopped
@@ -233,18 +263,35 @@ echo "
       - '--initial-cluster-state=new'
       - '--initial-cluster-token=pgha'
     networks:
-      net1-${containerNumber}:
-        priority: 1000
-      net2-${containerNumber}:
-        priority: 10
+      - pgha-net${dataCenter}-${containerNumber} "  >> $composeFile
+
+
+# lets loop through networks. Need to stop the echo above, generate the networks, append them to compose file 
+# then resume the rest of the echo to finish up
+
+networksNeeded=$(( numDataCenters + 1 ))
+
+# skip this data center network since its define above as the first network
+# basicallyjust adding remaining networks to list
+
+for (( n=1; n<=$networksNeeded; n++ ))
+do
+   if [ $n == $dataCenter ]; then
+      continue;
+   fi
+   echo -e "      - pgha-net${n}-${containerNumber} " >> $composeFile
+done
+
+echo -e "
     ports:
       - 2379
     volumes:
       - ${etcdNode}:/etcd_data
     hostname: ${etcdNode}
-    container_name: ${etcdNode}
-   
-   " >> $composeFile
+    container_name: ${etcdNode} 
+
+" >> $composeFile
+
 done
 
 }
@@ -270,9 +317,11 @@ buildPgBackrestService() {
    nodeCount=1
    pgBackrestEnvList="environment:"
 
+   local nonDcNetwork=$(( numDataCenters + 1 )) 
+
    for backrestNode in ${pgBackrestNameList};
    do
-      buildDependList $backrestNode "noetcd"
+      buildDependList $backrestNode "noEtcd"
 
       # -- Lets build the pgBackrest node lists that will be used for the config
       for pgNode in ${pgNameList};
@@ -295,12 +344,26 @@ echo -e "
     image: pgha-pgbackrest
     restart: unless-stopped
     networks:
-      net1-${containerNumber}:
-        priority: 1000
-      net2-${containerNumber}:
-        priority: 10
-      net3-${containerNumber}:
-        priority: 10
+      - pgha-net${nonDcNetwork}-${containerNumber} " >> $composeFile
+
+# lets loop through networks. Need to stop the echo above, generate the networks, append them to compose file
+# then resume the rest of the echo to finish up
+
+networksNeeded=$(( numDataCenters + 1 ))
+
+# skip the non dc data center network since its define above as the first network
+# basicallyjust adding remaining networks to list
+
+for (( n=1; n<=$networksNeeded; n++ ))
+do
+   if [ $n == $nonDcNetwork ]; then
+      continue;
+   fi
+   echo -e "      - pgha-net${n}-${containerNumber} " >> $composeFile
+done
+
+
+echo -e "
     volumes:
       - ${backrestNode}-data:/pgha/pgbackrest
       - ${backrestNode}-home:/var/lib/postgresql
@@ -319,22 +382,40 @@ echo -e "
 
 
 
-
-
-buildNetworks() {
-
+function buildNetworks() {
+   local d
+   local c
+   local nodeCount
+   nodeCount=0
+   pgNameList=""
+     
    networkList="networks: "
 
-   # --  Network creation variables for custom networks
-   networkList="${networkList}\n  net1-${containerNumber}:"
-   networkList="${networkList}\n  net2-${containerNumber}:"
-   networkList="${networkList}\n  net3-${containerNumber}:"
+   # Add one more network for etcd outside of dc's. ( quorum )
+   networksNeeded=$(( numDataCenters + 1 ))  
+
+   for (( d=1; d<=$networksNeeded; d++ ))
+   do
+      networkList="${networkList}\n  pgha-net${d}-${containerNumber}:"
+   done
 
    echo -e "
 $networkList
 " >> $composeFile
 
-}
+}     
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -397,29 +478,15 @@ buildPgService() {
       # -- So the call sets dataCenter and NodeNumber. We only use dataCenter here
       getNodeInfo $pgNode
    
-      # - Assign network priority based on dataCenter
-      priority1=10;
-      priority2=10;
-      priority3=10;
-   
-      case $dataCenter in
-         1 | 4 | 7 | 10 | 13 | 16 | 19)
-            priority1=1000
-            ;;
-         2 | 5 | 8 | 11 | 14 | 17 | 20)
-            priority2=1000
-            ;;
-         3 | 6 | 9 | 12 | 15 | 18 | 21)
-            priority3=1000
-            ;;
-      esac
-   
    # --  lets generate unique ports to map
    portMap=$(( startingPort + $nodeCount ))
    
    # - Lets build the depend_on list. We let it know which service we are builing it for by passing the node
    # - We also pass a 2nd argument "etcd" so that the function adss the etcd nodes to the depends on list
    buildDependList $pgNode "etcd"
+
+   # extract the data center out of the node name so we can assign it to the proper network based on data center number
+   dataCenter=$( echo $pgNode | awk -F "-" '{print $3}')
 
 echo -e "
   ${pgNode}:
@@ -442,13 +509,29 @@ echo -e "
     cap_add:
       - SYS_ADMIN
     entrypoint: /entrypoint.sh
+
     networks:
-      net1-${containerNumber}:
-        priority: ${priority1}
-      net2-${containerNumber}:
-        priority: ${priority2}
-      net3-${containerNumber}:
-        priority: ${priority3}
+      - pgha-net${dataCenter}-${containerNumber} "  >> $composeFile
+
+
+# lets loop through networks. Need to stop the echo above, generate the networks, append them to compose file 
+# then resume the rest of the echo to finish up
+
+networksNeeded=$(( numDataCenters + 1 ))
+
+# skip this data center network since its define above as the first network
+# basicallyjust adding remaining networks to list
+
+for (( n=1; n<=$networksNeeded; n++ ))
+do
+   if [ $n == $dataCenter ]; then
+      continue;
+   fi
+   echo -e "      - pgha-net${n}-${containerNumber} " >> $composeFile
+done
+ 
+ 
+echo -e "
     ports:
       - "${portMap}:5432"
     volumes:
@@ -457,18 +540,11 @@ echo -e "
       - ${pgNode}-conf:/pgha/config
     hostname: ${pgNode}
     container_name: ${pgNode}
-
 " >> $composeFile
 
-   done
+done
 
 }
-
-
-
-
-
-
 
 
 
@@ -506,7 +582,7 @@ function checkAlpha() {
 
 composeFile='docker-compose.yaml'
 nodeName=""
-numDatacenters=1
+numDataCenters=1
 nodesPerDataCenter=2
 backGround=0
 
@@ -517,7 +593,7 @@ do
       n) nodeName="$OPTARG";;
       v) pgMajor="$OPTARG";;
       b) backGround="1";;
-      d) numDatacenters="$OPTARG";;
+      d) numDataCenters="$OPTARG";;
       c) nodesPerDataCenter="$OPTARG";;
       *) usage;;
       ?) usage;;
@@ -531,12 +607,12 @@ fi
 
 checkAlpha  $nodeName "-n"
 checkNumber $pgMajor "-v"
-checkNumber $numDatacenters "-d"
+checkNumber $numDataCenters "-d"
 checkNumber $nodesPerDataCenter "-c"
 
 
-maxNodes=9
-totalNodes=$(($numDatacenters * $nodesPerDataCenter))
+maxNodes=12
+totalNodes=$(($numDataCenters * $nodesPerDataCenter))
 
 if [ $totalNodes -gt $maxNodes ]; then
    usageMessage="You have exceeded the max number of nodes (${maxNodes}) allowed. "
@@ -544,7 +620,7 @@ if [ $totalNodes -gt $maxNodes ]; then
 fi
 
 if [ $totalNodes -lt 2 ]; then
-   usageMessage="You must have at least 2 nodes for Patroni. You have specified $numDatacenters data center and $nodesPerDataCenter node per data center."
+   usageMessage="You must have at least 2 nodes for Patroni. You have specified $numDataCenters data center and $nodesPerDataCenter node per data center."
    usage
 fi
 
@@ -569,7 +645,7 @@ echo "services:"  > $composeFile
 
 buildEtcdNodeNames
 buildPgNodeNames
-builPgBackrestNodeNames
+buildPgBackrestNodeNames
 
 buildEtcdService
 buildPgService
@@ -578,6 +654,23 @@ buildPgBackrestService
 buildVolumes
 buildNetworks
 
-echo -e "\n--- Finished. File $composeFile generated\n"
+echo  "Finished."
+echo
+echo  "Data centers: $numDataCenters -- ETCD per Data Center: $etcdPerDataCenter -- Total ETCD needed: $etcdNeeded  -- Needed for Quorum: $quorumNeeded -- Total outside of data centers for quorum: $nonDcEtcd";
+echo
+echo  "File $composeFile generated"
+echo
+echo  "To get started, run ..."
+echo
+echo  "	docker-compose create"
+echo  "	docker-compose start"
+echo
+echo  "To stop and delete run ..."
+echo
+echo  "	docker-compose down"
+echo
+echo  "To remove associated volumes for good run ..."
+echo
+echo '	docker volume rm $(docker volume ls | grep pgha- | awk '\''{print $2}'\'') '
 
 
