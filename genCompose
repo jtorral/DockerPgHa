@@ -126,9 +126,11 @@ function etcdHostsNeeded() {
   # outside etcd needed worse case scenario with only 1 data center remaining out of x
   # should be quorumNeeded - etcdPerDataCenter (2) which is the last remaining etcd hosts in the dc
 
-  nonDcEtcd=$(( $quorumNeeded - $etcdPerDataCenter ));
+  #nonDcEtcd=$(( $quorumNeeded - $etcdPerDataCenter ));
+  nonDcEtcd=$quorumNeeded
 
-  etcdNeeded=$(( $etcdNeeded + $nonDcEtcd ))
+  #etcdNeeded=$(( $etcdNeeded + $nonDcEtcd ))
+  etcdNeeded=$(( $etcdNeeded + $quorumNeeded ))
 
 }
 
@@ -147,16 +149,30 @@ function buildEtcdNodeNames() {
    local dc
 
    counter=1
+   dcCounter=1
    dc=1
+
+   # stop incrementing data centers when we reach number of data centers
 
    for (( nn=1; nn<=$etcdNeeded; nn++ ))
    do
          etcdNameList="${etcdNameList} pgha-etcd${nn}-${dc}-${containerNumber}"
          counter=$(( counter + 1 ))
+         dcCounter=$(( dcCounter + 1 ))
+         #if [ $counter -gt $etcdPerDataCenter ];
+
+
+         # This got a little hacky. But we only need 1 non DC network for the nodes outside of data centers
+         # So, basically, the loop will cap it an number of data centers + 1
+
          if [ $counter -gt $etcdPerDataCenter ];
          then
             counter=1
             dc=$(( dc + 1 ))
+            if [ $dc -gt $numDataCenters ]; 
+            then
+               dc=$(( $numDataCenters + 1 ))
+            fi
          fi
    done
 
