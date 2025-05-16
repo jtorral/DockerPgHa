@@ -25,7 +25,8 @@ function usage() {
         echo -e "       $0 [OPTION]"
         echo -e
         echo -e "       -d Number of data centers to simulate. (default = 1)"
-        echo -e "       -c number of nodes per data center. (default = 2)"
+        echo -e "       -c number of Postgres nodes per data center. (default = 2)"
+        #echo -e "       -e number of ETCD nodes per data center. (default = 1)"
         echo -e "       -n Prefix name to use for db containers (lower case no special characters)."
         echo -e "       -v Postgres Major version number. i.e 16. -- Used to create datadir and volumes"
         echo -e "       -b Start patroni in background and keep container running even if it stops. "
@@ -116,21 +117,27 @@ function checkUsed() {
 function etcdHostsNeeded() {
 
   # Two nodes per data center
-  etcdPerDataCenter=2 
+  minDcNeeded=1
+  etcdNeeded=$(( $etcdPerDataCenter * $numDataCenters ))
+  minDcNodesNeeded=$(( $minDcNeeded * $etcdPerDataCenter ))
+  
+  # need more than half
 
-  etcdNeeded=$(( $numDataCenters * $etcdPerDataCenter  ))  
-
-  # Quorum is more than half of total members
   quorumNeeded=$(( ($etcdNeeded / 2 ) + 1))  
 
-  # outside etcd needed worse case scenario with only 1 data center remaining out of x
-  # should be quorumNeeded - etcdPerDataCenter (2) which is the last remaining etcd hosts in the dc
+  #if (( $quorumNeeded % 2 == 0 )) ; then
+     #quorumNeeded=$(( $quorumNeeded + 1 ))
+  #fi
 
-  #nonDcEtcd=$(( $quorumNeeded - $etcdPerDataCenter ));
-  nonDcEtcd=$quorumNeeded
+  nonDcEtcd=$(( $quorumNeeded - $minDcNodesNeeded ))
 
-  #etcdNeeded=$(( $etcdNeeded + $nonDcEtcd ))
-  etcdNeeded=$(( $etcdNeeded + $quorumNeeded ))
+  #etcdNeeded=$(( $etcdNeeded + $quorumNeeded ))
+  etcdNeeded=$(( $etcdNeeded + $nonDcEtcd ))
+
+  # testing because 3 dc wont work if 2 go down
+  if (( $etcdNeeded % 2 == 0 )) ; then
+     etcdNeeded=$(( $etcdNeeded + 1 ))
+  fi
 
 }
 
@@ -600,10 +607,11 @@ composeFile='docker-compose.yaml'
 nodeName=""
 numDataCenters=1
 nodesPerDataCenter=2
+etcdPerDataCenter=1 
 backGround=0
 
 
-while getopts bn:d:c:v: name
+while getopts bn:d:c:e:v: name
 do
    case $name in
       n) nodeName="$OPTARG";;
@@ -611,6 +619,7 @@ do
       b) backGround="1";;
       d) numDataCenters="$OPTARG";;
       c) nodesPerDataCenter="$OPTARG";;
+      e) etcdPerDataCenter="$OPTARG";;
       *) usage;;
       ?) usage;;
    esac

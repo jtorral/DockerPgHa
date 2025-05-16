@@ -25,11 +25,11 @@ if [ -z $pginstance ]; then
    exit
 fi
 
-leader=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list | grep -i leader |  awk '{print $2}')
+leader=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list 2> /dev/null | grep -i leader |  awk '{print $2}')
 
-active=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list | grep -E 'running|streamin' | wc -l)
+active=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list 2> /dev/null | grep -E 'running|streamin' | wc -l)
 
-dc=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list | grep -i leader |  awk '{print $2}' | awk -F "-" '{print $3}')
+dc=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list 2> /dev/null | grep -i leader |  awk '{print $2}' | awk -F "-" '{print $3}')
 
 nodesindc=$(docker ps | grep pgha | grep "\-$dc-1" | awk '{print $NF}' | paste -sd ' ' -)  # The paste joins the lines together
 
@@ -57,27 +57,40 @@ echo -e "\tDocker containers in DC     : $nodesindc"
 echo -e 
 
 
+#2025-05-16 15:49:55,197 - WARNING - failed to resolve host pgha-etcd4-2-1: [Errno -2] Name or service not known
+#2025-05-16 15:49:55,199 - ERROR - Request to server http://pgha-etcd4-2-1:2379 failed: MaxRetryError("HTTPConnectionPool(host='pgha-etcd4-2-1', port=2379): Max retries exceeded with url: /v3/kv/range (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f1c40db0a60>: Failed to establish a new connection: getaddrinfo returns an empty list'))")
+
 
 
 echo -e 
 echo -e "Patroni cluster details ...."
 echo -e 
 echo -e 
-patroniInfo=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list )
+patroniInfo=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list 2> /dev/null )
 echo -e "$patroniInfo"
 echo -e 
 
 
+netWorks=$(docker network ls | grep pgha | awk '{ print $2}')
+lastNetwork=$(echo $netWorks | awk '{print $NF}')
+lastNetwork="${lastNetwork#dockerpgha_}"
+
+numDc=$(echo $netWorks | wc -w)
+
+# Get rid of non DC from list
+numDc=$(( $numDc - 1 )) 
+
+# Get network details
+echo -e 
+echo -e " === There are $numDc data centers in this deployment ==="
+echo -e 
+echo -e 
 
 # Get network details
 echo -e 
 echo -e "Network details ...."
 echo -e 
 echo -e 
-netWorks=$(docker network ls | grep pgha | awk '{ print $2}')
-
-lastNetwork=$(echo $netWorks | awk '{print $NF}')
-lastNetwork="${lastNetwork#dockerpgha_}"
 
 for netWorkName in $netWorks; do
    details=$(docker network inspect $netWorkName --format='Subnet: {{range .IPAM.Config}}{{.Subnet}}{{end}}')
@@ -99,7 +112,7 @@ echo -e
 echo -e "ETCD cluster details ...."
 echo -e 
 echo -e 
-etcdStatusCmd="docker exec -it $etcdHost etcdctl --write-out=table --endpoints=$endpoint endpoint status"
+etcdStatusCmd="docker exec -it $etcdHost etcdctl --write-out=table --endpoints=$endpoint endpoint status 2> /dev/null"
 $etcdStatusCmd
 echo -e 
 
