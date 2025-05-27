@@ -5,6 +5,31 @@
 # for propper formatting
 # ---------------------------------------------------------------------------------------
 
+#
+# Set a font color so repeated runds can be identified based on color
+#
+
+red='\e[31m'
+green='\e[32m'
+yellow='\e[33m'
+cyan='\e[36m'
+magenta='\e[35m'
+white='\e[37m'
+reset='\e[0m'
+
+randomNumber=$(( (RANDOM % 6) + 1 ))
+
+case $randomNumber in
+   1) echo -e ${red};;
+   2) echo -e ${green} ;;
+   3) echo -e ${yellow} ;;
+   4) echo -e ${cyan} ;;
+   5) echo -e ${magenta} ;;
+   6) echo -e ${white} ;;
+esac
+
+ 
+
 if [ "$#" -lt 1 ]; then
    echo "Please provide the instance name"
    exit
@@ -116,3 +141,5 @@ etcdStatusCmd="docker exec -it $etcdHost etcdctl --write-out=table --endpoints=$
 $etcdStatusCmd
 echo -e 
 
+
+echo -e ${reset}

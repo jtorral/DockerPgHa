@@ -26,7 +26,8 @@ function usage() {
         echo -e
         echo -e "       -d Number of data centers to simulate. (default = 1)"
         echo -e "       -c number of Postgres nodes per data center. (default = 2)"
-        #echo -e "       -e number of ETCD nodes per data center. (default = 1)"
+        echo -e "       -e number of ETCD nodes per data center. (default = 1)"
+        echo -e "       -m Minimum number of data centers to support after a failure. (default = 1)"
         echo -e "       -n Prefix name to use for db containers (lower case no special characters)."
         echo -e "       -v Postgres Major version number. i.e 16. -- Used to create datadir and volumes"
         echo -e "       -b Start patroni in background and keep container running even if it stops. "
@@ -116,28 +117,48 @@ function checkUsed() {
 # -- Determin how many etcd nodes we need
 function etcdHostsNeeded() {
 
-  # Two nodes per data center
-  minDcNeeded=1
-  etcdNeeded=$(( $etcdPerDataCenter * $numDataCenters ))
-  minDcNodesNeeded=$(( $minDcNeeded * $etcdPerDataCenter ))
+  etcdNeeded=$(( $etcdPerDataCenter * $numDataCenters ))  # Number of data centers * number of etcd nodes per data center
+
+  quorumNeeded=$(( ($etcdNeeded / 2 ) + 1))               # Number of etcd nodes needed / 2 + 1 forms a quorum
+
+  remainingDC=$(( $minDcNeeded + 1 ))                     # remaining data centers after all failed. + the external data center
+                                                          # In other words, how many data cenbters do we want to be able to run out of the total number of data centers
+                                                          # We then add 1 to it to include the non dc data center 
+
+  nodesForExternalDC=$etcdPerDataCenter                   # An additional x number of nodes in the external DC
+
+nodesForExternalDC=3
+
+  totalNodes=$(( $etcdNeeded + $nodesForExternalDC ))     # The original number of etcd nodes + the additional ones in the external DC
+
   
-  # need more than half
+  newQuorum=$(( (($etcdNeeded + $nodesForExternalDC)/2) + 1 ))
 
-  quorumNeeded=$(( ($etcdNeeded / 2 ) + 1))  
+  #if nodesforexternaldc + remainingnodeindc( etcdperdc ) < newquorum, extra for nodesforexternaldc = ( newquorum - 
 
-  #if (( $quorumNeeded % 2 == 0 )) ; then
-     #quorumNeeded=$(( $quorumNeeded + 1 ))
-  #fi
+   #1 + 1 (2) < newquoru(3) extra needed is newquorum - nodesfor external + remainingindc
 
-  nonDcEtcd=$(( $quorumNeeded - $minDcNodesNeeded ))
+  extraNeeded=0
+  
+  remainingNodes=$(( $nodesForExternalDC + $etcdPerDataCenter ))
 
-  #etcdNeeded=$(( $etcdNeeded + $quorumNeeded ))
-  etcdNeeded=$(( $etcdNeeded + $nonDcEtcd ))
-
-  # testing because 3 dc wont work if 2 go down
-  if (( $etcdNeeded % 2 == 0 )) ; then
-     etcdNeeded=$(( $etcdNeeded + 1 ))
+  if [ $remainingNodes -lt $newQuorum ]; then
+     extraNeeded=$(( ($newQuorum - $nodesForExternalDC) + $etcdPerDataCenter ))
   fi
+
+  nodesForExternalDC=$(( $nodesForExternalDC + $extraNeeded ))
+   
+
+  echo 
+  echo
+  echo "Original node count $etcdNeeded"
+  echo "Original quorum $quorumNeeded"
+  echo "Remaining DC after failure of others $remainingDC"
+  echo "Nodes for external DC $nodesForExternalDC"
+  echo "Total nodes $totalNodes"
+  echo "New quorum $newQuorum"
+
+  etcdNeeded=$totalNodes
 
 }
 
@@ -308,6 +329,7 @@ done
 echo -e "
     ports:
       - 2379
+      - 2380
     volumes:
       - ${etcdNode}:/etcd_data
     hostname: ${etcdNode}
@@ -608,10 +630,11 @@ nodeName=""
 numDataCenters=1
 nodesPerDataCenter=2
 etcdPerDataCenter=1 
+minDcNeeded=1
 backGround=0
 
 
-while getopts bn:d:c:e:v: name
+while getopts bn:d:c:e:m:v: name
 do
    case $name in
       n) nodeName="$OPTARG";;
@@ -620,6 +643,7 @@ do
       d) numDataCenters="$OPTARG";;
       c) nodesPerDataCenter="$OPTARG";;
       e) etcdPerDataCenter="$OPTARG";;
+      m) minDcNeeded="$OPTARG";;
       *) usage;;
       ?) usage;;
    esac
@@ -679,9 +703,9 @@ buildPgBackrestService
 buildVolumes
 buildNetworks
 
+
 echo  "Finished."
 echo
-echo  "Data centers: $numDataCenters -- ETCD per Data Center: $etcdPerDataCenter -- Total ETCD needed: $etcdNeeded  -- Needed for Quorum: $quorumNeeded -- Total outside of data centers for quorum: $nonDcEtcd";
 echo
 echo  "File $composeFile generated"
 echo
