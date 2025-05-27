@@ -127,8 +127,6 @@ function etcdHostsNeeded() {
 
   nodesForExternalDC=$etcdPerDataCenter                   # An additional x number of nodes in the external DC
 
-nodesForExternalDC=3
-
   totalNodes=$(( $etcdNeeded + $nodesForExternalDC ))     # The original number of etcd nodes + the additional ones in the external DC
 
   
