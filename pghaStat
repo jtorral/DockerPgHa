@@ -9,26 +9,8 @@
 # Set a font color so repeated runds can be identified based on color
 #
 
-red='\e[31m'
-green='\e[32m'
-yellow='\e[33m'
-cyan='\e[36m'
-magenta='\e[35m'
-white='\e[37m'
-reset='\e[0m'
-
-randomNumber=$(( (RANDOM % 6) + 1 ))
-
-case $randomNumber in
-   1) echo -e ${red};;
-   2) echo -e ${green} ;;
-   3) echo -e ${yellow} ;;
-   4) echo -e ${cyan} ;;
-   5) echo -e ${magenta} ;;
-   6) echo -e ${white} ;;
-esac
-
- 
+#bold=$(tput bold)
+#normal=$(tput sgr0)
 
 if [ "$#" -lt 1 ]; then
    echo "Please provide the instance name"
@@ -38,7 +20,8 @@ fi
 name=$1
 
 echo
-echo "Please wait while we gather some data ..."
+echo -e "\tPlease wait while we gather some data ..."
+echo -e "\tIf there are down systems, this could take a few minues"
 echo
 
 # get any running pg instance
@@ -54,10 +37,17 @@ leader=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf lis
 
 active=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list 2> /dev/null | grep -E 'running|streamin' | wc -l)
 
+patronimembers=$(docker exec -it $leader patronictl -c /pgha/config/patroni.conf list | awk '{print $2}' | tr -d '' | grep $name | sort -u | paste -sd ' ' -)
+
+patroniListCmd="docker exec -it $leader patronictl -c /pgha/config/patroni.conf list"
+
 dc=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list 2> /dev/null | grep -i leader |  awk '{print $2}' | awk -F "-" '{print $3}')
 
 nodesindc=$(docker ps | grep pgha | grep "\-$dc-1" | awk '{print $NF}' | paste -sd ' ' -)  # The paste joins the lines together
 
+numberofdc=$(docker ps | grep $name | awk '{print $12}' | awk -F"-" '{print $3}' | sort -u | wc -l)
+
+dcname=$(docker ps | grep $name | awk '{print $12}' | awk -F"-" '{print $3}' | sort -u  | paste -sd ' ' - )
 
 etcdHost=$(docker ps | grep "pgha-etcd" | tail -1 | awk '{print $NF}' )
 
@@ -74,29 +64,27 @@ for host in $etcdHosts; do
 done
 
 
-echo -e "\tInstance used to query env  : $pginstance"
-echo -e "\tPatroni Leader              : $leader"
-echo -e "\tActive Patroni nodes        : $active"
-echo -e "\tDC hosting Patroni Leader   : $dc"
-echo -e "\tDocker containers in DC     : $nodesindc"
+echo -e
+echo -e "\tSummary ..."
+echo -e
+echo -e "\tInstance used to query env     : $pginstance"
+echo -e "\tPatroni Leader                 : $leader"
+echo -e "\tActive Patroni nodes           : $active"
+echo -e "\tActive Patroni members         : $patronimembers"
+echo -e "\tDC hosting Patroni Leader      : $dc"
+echo -e "\tDocker containers in $dc       : $nodesindc"
+echo -e "\tNumber of running data centers : $numberofdc"
+echo -e "\tData center names              : $dcname"
 echo -e 
 
 
-#2025-05-16 15:49:55,197 - WARNING - failed to resolve host pgha-etcd4-2-1: [Errno -2] Name or service not known
-#2025-05-16 15:49:55,199 - ERROR - Request to server http://pgha-etcd4-2-1:2379 failed: MaxRetryError("HTTPConnectionPool(host='pgha-etcd4-2-1', port=2379): Max retries exceeded with url: /v3/kv/range (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f1c40db0a60>: Failed to establish a new connection: getaddrinfo returns an empty list'))")
-
-
-
-echo -e 
-echo -e "Patroni cluster details ...."
 echo -e 
 echo -e 
-patroniInfo=$(docker exec -it $pginstance patronictl -c /pgha/config/patroni.conf list 2> /dev/null )
-echo -e "$patroniInfo"
+echo -e "\t Patroni cluster ..."
 echo -e 
+$patroniListCmd | awk '{print "\t" $0 }'
 
-
-netWorks=$(docker network ls | grep pgha | awk '{ print $2}')
+netWorks=$(docker network ls | grep pgha | grep DC | awk '{ print $2}')
 lastNetwork=$(echo $netWorks | awk '{print $NF}')
 lastNetwork="${lastNetwork#dockerpgha_}"
 
@@ -105,16 +93,8 @@ numDc=$(echo $netWorks | wc -w)
 # Get rid of non DC from list
 numDc=$(( $numDc - 1 )) 
 
-# Get network details
 echo -e 
-echo -e " === There are $numDc data centers in this deployment ==="
-echo -e 
-echo -e 
-
-# Get network details
-echo -e 
-echo -e "Network details ...."
-echo -e 
+echo -e "\tNetwork ..."
 echo -e 
 
 for netWorkName in $netWorks; do
@@ -122,11 +102,14 @@ for netWorkName in $netWorks; do
    # A way of removing prefix using parameter expression
    definedName="${netWorkName#dockerpgha_}" 
    networkDc=$(echo "$definedName" | sed -n 's/.*net\([0-9]\+\).*/\1/p')
+
+   cleanName=$(echo $definedName | awk -F"-" '{print $3}' )
+
    if [ "$definedName" == "$lastNetwork" ];
    then
-      echo -e "\tNon DC   network is $definedName     : $details"
+      echo -e "\t$cleanName (Non DC) network is $definedName  : $details"
    else 
-      echo -e "\t    DC $networkDc network is $definedName     : $details"
+      echo -e "\t$cleanName network is $definedName           : $details"
    fi
 done
 echo -e 
@@ -134,12 +117,16 @@ echo -e
 
 
 echo -e 
-echo -e "ETCD cluster details ...."
+echo -e "\tetcd member health ..."
 echo -e 
+
+etcdStatusCmd="docker exec -it $etcdHost etcdctl --write-out=table --endpoints=$endpoint endpoint health  2> /dev/null"
+$etcdStatusCmd | awk '{print "\t" $0 }'
+
 echo -e 
+echo -e "\tetcd status ..."
+echo -e 
+
 etcdStatusCmd="docker exec -it $etcdHost etcdctl --write-out=table --endpoints=$endpoint endpoint status 2> /dev/null"
-$etcdStatusCmd
-echo -e 
+$etcdStatusCmd | awk '{print "\t" $0 }'
 
-
-echo -e ${reset}

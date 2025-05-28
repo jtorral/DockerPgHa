@@ -22,22 +22,29 @@
 function usage() {
         echo -e
         echo -e "Usage:"
-        echo -e "       $0 [OPTION]"
+        echo -e "\t$0 [OPTION]"
         echo -e
-        echo -e "       -d Number of data centers to simulate. (default = 1)"
-        echo -e "       -c number of Postgres nodes per data center. (default = 2)"
-        echo -e "       -e number of ETCD nodes per data center. (default = 1)"
-        echo -e "       -m Minimum number of data centers to support after a failure. (default = 1)"
-        echo -e "       -n Prefix name to use for db containers (lower case no special characters)."
-        echo -e "       -v Postgres Major version number. i.e 16. -- Used to create datadir and volumes"
-        echo -e "       -b Start patroni in background and keep container running even if it stops. "
-        echo -e "          Good for upgrades and maintenance tasks." 
+        echo -e "\t-d Number of data centers to simulate. (default = 1)"
+        echo -e "\t-c number of Postgres nodes per data center. (default = 2)"
+        echo -e "\t-e number of ETCD nodes per data center. (default = 1)"
+        echo -e "\t-m Minimum number of data centers to support after a failure. (default = 1)"
+        echo -e "\t-n Prefix name to use for db containers (lower case no special characters)."
+        #echo -e "\t-v Postgres Major version number. i.e 16. -- Used to create datadir and volumes"
+        echo -e "\t-b Start patroni in background and keep container running even if it stops. "
+        echo -e "\t   Good for upgrades and maintenance tasks." 
         echo -e
-        echo -e "       Number of db nodes is capped at 9. So (-d * -c) should be <= 9 "
-        echo -e "       Number of etcd nodes are calculated on (-d * -c ) / 2 + 1 "
+        echo -e $yellow
+        echo -e "\t-Number of db nodes is capped at 9. So (-d * -c) should be <= 9 "
+        echo -e
+        echo -e "\t-By default, the minimum number of data centers that can remain running out of the number of data centers declared is 1. Meaning everything"
+        echo -e "\t still works as long as 1 data center is active."
+        echo -e "\t This can be change by using -m option and specifying a value of 2 which would essentially only work with a minimum of 2 data centers running." 
+        echo -e
+        echo -e "\t-Keep in mind that if the majority of your data centers are down, you have bigger problems to worry about." 
+        echo -e $white
         echo -e
         if [ ! -z "$usageMessage" ]; then
-           echo -e "${usageMessage}"
+           echo -e "\t*** ${usageMessage} ***"
            echo -e
         fi
         exit
@@ -119,44 +126,42 @@ function etcdHostsNeeded() {
 
   etcdNeeded=$(( $etcdPerDataCenter * $numDataCenters ))  # Number of data centers * number of etcd nodes per data center
 
+  originalEtcdNeeded=$etcdNeeded
+
   quorumNeeded=$(( ($etcdNeeded / 2 ) + 1))               # Number of etcd nodes needed / 2 + 1 forms a quorum
 
-  remainingDC=$(( $minDcNeeded + 1 ))                     # remaining data centers after all failed. + the external data center
-                                                          # In other words, how many data cenbters do we want to be able to run out of the total number of data centers
-                                                          # We then add 1 to it to include the non dc data center 
+  remainingDC=$minDcNeeded
 
-  nodesForExternalDC=$etcdPerDataCenter                   # An additional x number of nodes in the external DC
+  nodesForExternalDC=$((       ( ( ( $etcdNeeded + ( $etcdPerDataCenter * 1 ) ) / 2 ) + 1 ) - $etcdPerDataCenter         )) 
 
-  totalNodes=$(( $etcdNeeded + $nodesForExternalDC ))     # The original number of etcd nodes + the additional ones in the external DC
+  totalNodes=$(( $etcdNeeded + $nodesForExternalDC ))  
 
+  newQuorum=$(( (($totalNodes)/2) + 1 ))
   
-  newQuorum=$(( (($etcdNeeded + $nodesForExternalDC)/2) + 1 ))
+  extraNeeded=$(( $newQuorum - $etcdPerDataCenter ))
 
-  #if nodesforexternaldc + remainingnodeindc( etcdperdc ) < newquorum, extra for nodesforexternaldc = ( newquorum - 
+  nodesForExternalDC=$extraNeeded
 
-   #1 + 1 (2) < newquoru(3) extra needed is newquorum - nodesfor external + remainingindc
-
-  extraNeeded=0
+  totalNodes=$(( $etcdNeeded + $extraNeeded ))  
   
-  remainingNodes=$(( $nodesForExternalDC + $etcdPerDataCenter ))
-
-  if [ $remainingNodes -lt $newQuorum ]; then
-     extraNeeded=$(( ($newQuorum - $nodesForExternalDC) + $etcdPerDataCenter ))
-  fi
-
-  nodesForExternalDC=$(( $nodesForExternalDC + $extraNeeded ))
-   
-
-  echo 
-  echo
-  echo "Original node count $etcdNeeded"
-  echo "Original quorum $quorumNeeded"
-  echo "Remaining DC after failure of others $remainingDC"
-  echo "Nodes for external DC $nodesForExternalDC"
-  echo "Total nodes $totalNodes"
-  echo "New quorum $newQuorum"
-
   etcdNeeded=$totalNodes
+
+  echo -e $bold
+  echo -e $yellow
+  echo -e "\tOverview ..."
+  echo -e $normal
+  echo -e "\tNumber of data centers: $numDataCenters"
+  echo -e "\tOriginal number of ETCD nodes needed: $originalEtcdNeeded"
+  echo -e "\tOriginal number od ETCD nodes needed for a quorum: $quorumNeeded"
+  echo -e "\tOriginal number od ETCD nodes to deploy per data center: $etcdPerDataCenter"
+  echo -e "\tThe number of data centers to maintain running after all others fail: $minDcNeeded"
+  echo -e "\tNumber of external ETCD nodes needed outside of data centers to maintain a quorum: $nodesForExternalDC"
+  echo -e "\tTotal ETCD nodes needed including the external ones: $totalNodes"
+  echo -e "\tThe new number of nodes needed to maintain a quorum: $newQuorum"
+  echo -e
+
+#exit
+
 
 }
 
@@ -182,7 +187,7 @@ function buildEtcdNodeNames() {
 
    for (( nn=1; nn<=$etcdNeeded; nn++ ))
    do
-         etcdNameList="${etcdNameList} pgha-etcd${nn}-${dc}-${containerNumber}"
+         etcdNameList="${etcdNameList} pgha-etcd${nn}-DC${dc}-${containerNumber}"
          counter=$(( counter + 1 ))
          dcCounter=$(( dcCounter + 1 ))
          #if [ $counter -gt $etcdPerDataCenter ];
@@ -214,15 +219,27 @@ function buildPgNodeNames() {
    nodeCount=0
    pgNameList=""
     
+   #for (( d=1; d<=$numDataCenters; d++ ))
+   #do   
+      #for (( c=1; c<=$nodesPerDataCenter; c++ ))
+      #do
+         #if [ $d -eq 1 ] && [ $c -eq 1 ]; then
+            #firstNode="pgha-${nodeName}$d-DC${c}-${containerNumber}" 
+         #fi
+         #nodeCount=$(( $nodeCount + 1 ))
+         #pgNameList="${pgNameList} pgha-${nodeName}$d-DC${c}-${containerNumber}"
+      #done
+   #done 
+
+
    for (( d=1; d<=$numDataCenters; d++ ))
-   do
+   do      
       for (( c=1; c<=$nodesPerDataCenter; c++ ))
       do
          if [ $d -eq 1 ] && [ $c -eq 1 ]; then
-            firstNode="pgha-${nodeName}${c}-${d}-${containerNumber}"
+            firstNode="pgha-${nodeName}$c-DC${d}-${containerNumber}" 
          fi
-         nodeCount=$(( $nodeCount + 1 ))
-         pgNameList="${pgNameList} pgha-${nodeName}${c}-${d}-${containerNumber}"
+         pgNameList="${pgNameList} pgha-${nodeName}$c-DC${d}-${containerNumber}"
       done
    done
 
@@ -237,8 +254,8 @@ function buildPgBackrestNodeNames() {
    # -- Only one bgbackrest server is actually needed. 
    # -- So, just hardcoding the name here
    pgBackrestNeeded=1
-   pgBackrestNameList="pgha-pgbackrest-0-${containerNumber}"
-   pgBackrestNodeName="pgha-pgbackrest-0-${containerNumber}"
+   pgBackrestNameList="pgha-pgbackrest-DC0-${containerNumber}"
+   pgBackrestNodeName="pgha-pgbackrest-DC0-${containerNumber}"
 
    # -- If you want to use the loop to build the server name, just uncomment the code below
    # -- Which is what is used for building multiple server names for etcd and pg servers 
@@ -305,7 +322,7 @@ echo -e "
       - '--initial-cluster-state=new'
       - '--initial-cluster-token=pgha'
     networks:
-      - pgha-net${dataCenter}-${containerNumber} "  >> $composeFile
+      - pgha-net-${dataCenter}-${containerNumber} "  >> $composeFile
 
 
 # lets loop through networks. Need to stop the echo above, generate the networks, append them to compose file 
@@ -318,10 +335,12 @@ networksNeeded=$(( numDataCenters + 1 ))
 
 for (( n=1; n<=$networksNeeded; n++ ))
 do
-   if [ $n == $dataCenter ]; then
+   x="DC$n"
+   #if [ $n == $dataCenter ]; then
+   if [ "$x" == "$dataCenter" ]; then
       continue;
    fi
-   echo -e "      - pgha-net${n}-${containerNumber} " >> $composeFile
+   echo -e "      - pgha-net-DC${n}-${containerNumber} " >> $composeFile
 done
 
 echo -e "
@@ -387,7 +406,7 @@ echo -e "
     image: pgha-pgbackrest
     restart: unless-stopped
     networks:
-      - pgha-net${nonDcNetwork}-${containerNumber} " >> $composeFile
+      - pgha-net-DC${nonDcNetwork}-${containerNumber} " >> $composeFile
 
 # lets loop through networks. Need to stop the echo above, generate the networks, append them to compose file
 # then resume the rest of the echo to finish up
@@ -399,10 +418,12 @@ networksNeeded=$(( numDataCenters + 1 ))
 
 for (( n=1; n<=$networksNeeded; n++ ))
 do
-   if [ $n == $nonDcNetwork ]; then
+   x="DC$n"
+   #if [ $n == $nonDcNetwork ]; then
+   if [ "$n" == "$nonDcNetwork" ]; then
       continue;
    fi
-   echo -e "      - pgha-net${n}-${containerNumber} " >> $composeFile
+   echo -e "      - pgha-net-DC${n}-${containerNumber} " >> $composeFile
 done
 
 
@@ -439,7 +460,7 @@ function buildNetworks() {
 
    for (( d=1; d<=$networksNeeded; d++ ))
    do
-      networkList="${networkList}\n  pgha-net${d}-${containerNumber}:"
+      networkList="${networkList}\n  pgha-net-DC${d}-${containerNumber}:"
    done
 
    echo -e "
@@ -554,7 +575,7 @@ echo -e "
     entrypoint: /entrypoint.sh
 
     networks:
-      - pgha-net${dataCenter}-${containerNumber} "  >> $composeFile
+      - pgha-net-${dataCenter}-${containerNumber} "  >> $composeFile
 
 
 # lets loop through networks. Need to stop the echo above, generate the networks, append them to compose file 
@@ -567,10 +588,12 @@ networksNeeded=$(( numDataCenters + 1 ))
 
 for (( n=1; n<=$networksNeeded; n++ ))
 do
-   if [ $n == $dataCenter ]; then
+   x="DC$n"
+   #if [ $n == $dataCenter ]; then
+   if [ "$x" == "$dataCenter" ]; then
       continue;
    fi
-   echo -e "      - pgha-net${n}-${containerNumber} " >> $composeFile
+   echo -e "      - pgha-net-DC${n}-${containerNumber} " >> $composeFile
 done
  
  
@@ -626,10 +649,22 @@ function checkAlpha() {
 composeFile='docker-compose.yaml'
 nodeName=""
 numDataCenters=1
+maxDataCenters=4
 nodesPerDataCenter=2
 etcdPerDataCenter=1 
 minDcNeeded=1
 backGround=0
+pgMajor=16  # Hard code for this version of postgres in this image
+
+#bold=$(tput bold)
+#normal=$(tput sgr0)
+#white=$(tput setaf 7)
+white="\033[00m"
+red="\033[91m"
+yellow="\033[93m"
+bold="\033[1m"
+normal="\033[0m"
+
 
 
 while getopts bn:d:c:e:m:v: name
@@ -652,6 +687,8 @@ if [ -z "$nodeName" ] || [ -z "$pgMajor" ]; then
    usage
 fi
 
+originalNodeName=$nodeName
+
 checkAlpha  $nodeName "-n"
 checkNumber $pgMajor "-v"
 checkNumber $numDataCenters "-d"
@@ -662,12 +699,17 @@ maxNodes=12
 totalNodes=$(($numDataCenters * $nodesPerDataCenter))
 
 if [ $totalNodes -gt $maxNodes ]; then
-   usageMessage="You have exceeded the max number of nodes (${maxNodes}) allowed. "
+   usageMessage="$bold You have exceeded the max number of nodes (${maxNodes}) allowed. "
+   usage
+fi
+
+if [ $numDataCenters -gt $maxDataCenters ]; then
+   usageMessage="$bold  Due to the complexity of setting up ETCD / Quorums / Docker / Resources, we are limiting max number of data centers to $maxDataCenters $normal"
    usage
 fi
 
 if [ $totalNodes -lt 2 ]; then
-   usageMessage="You must have at least 2 nodes for Patroni. You have specified $numDataCenters data center and $nodesPerDataCenter node per data center."
+   usageMessage="$bold You must have at least 2 nodes for Patroni. You have specified $numDataCenters data center and $nodesPerDataCenter node per data center."
    usage
 fi
 
@@ -702,22 +744,33 @@ buildVolumes
 buildNetworks
 
 
-echo  "Finished."
-echo
-echo
-echo  "File $composeFile generated"
-echo
-echo  "To get started, run ..."
-echo
-echo  "	docker-compose create"
-echo  "	docker-compose start"
-echo
-echo  "To stop and delete run ..."
-echo
-echo  "	docker-compose down"
-echo
-echo  "To remove associated volumes for good run ..."
-echo
-echo '	docker volume rm $(docker volume ls | grep pgha- | awk '\''{print $2}'\'') '
+echo -e
+echo -e $bold 
+echo -e  "\tFile $composeFile generated"
+echo -e
+echo -e $bold $yellow
+echo -e  "\tTo get started, run ..."
+echo -e $normal
+echo -e
+echo -e  "\t\tdocker-compose create"
+echo -e  "\t\tdocker-compose start"
+echo -e
+echo -e $bold $yellow
+echo -e  "\tTo stop and delete the containers run ..."
+echo -e $normal
+echo -e
+echo -e  "\t\tdocker-compose down"
+echo -e
+echo -e $bold $yellow
+echo -e  "\tTo remove associated volumes for good run ..."
+echo -e $normal
+echo -e
+echo -e '\t\tdocker volume rm $(docker volume ls | grep pgha- | awk '\''{print $2}'\'') '
+echo -e
+echo -e $bold $yellow
+echo -e  "\tTry running the foloowing for a deploy status ..."
+echo -e $normal
+echo -e "\t\t./pghaStat $originalNodeName"
+echo -e
 
 
