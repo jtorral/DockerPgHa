@@ -44,7 +44,7 @@ function usage() {
         echo -e $white
         echo -e
         if [ ! -z "$usageMessage" ]; then
-           echo -e "\t*** ${usageMessage} ***"
+           echo -e "\t${usageMessage}"
            echo -e
         fi
         exit
@@ -124,26 +124,57 @@ function checkUsed() {
 # -- Determin how many etcd nodes we need
 function etcdHostsNeeded() {
 
-  etcdNeeded=$(( $etcdPerDataCenter * $numDataCenters ))  # Number of data centers * number of etcd nodes per data center
+  # Startingnumber of etcd nodes needed. 
+  etcdNeeded=$(( $etcdPerDataCenter * $numDataCenters ))  
 
+  # Another variubal to hold original value since it will change
   originalEtcdNeeded=$etcdNeeded
 
-  quorumNeeded=$(( ($etcdNeeded / 2 ) + 1))               # Number of etcd nodes needed / 2 + 1 forms a quorum
+  # Number of etcd nodes needed for a quorm based on the starting number of etcd nodes
+  quorumNeeded=$(( ($etcdNeeded / 2 ) + 1))               
 
+  # The minimumn number od data centers to keep alive. Lower means more resources when deploying
   remainingDC=$minDcNeeded
 
-  nodesForExternalDC=$((       ( ( ( $etcdNeeded + ( $etcdPerDataCenter * 1 ) ) / 2 ) + 1 ) - $etcdPerDataCenter         )) 
+  # ====================================== Important logic to understand. ======================================
+  #
+  # We will need etcd nodes outside the data centers to vote. This is so we can maintain quorium as others go down,
+  # So this is basically, the original number of etcdnodes needed, plus 1 additional set of external nodes. 
+  # The additional number of external nodes is based number of etcd nodes per data center.
+  # Then we get the quorum needed based on this new number of nodes. Subtract howmany nodes perdata center which leaves us 
+  # with how many extra nodes we need externally.
 
+  # For example, if you have 3 data centers with 2 etcdnodes per data center. That means a quorum of 4. ( 3 * 2 ) / 2 + 1
+  # if all data centers but 1 were to go down, your are left with only 1 data center with 2 etcd nodes.
+  # which is not enough to be a quorum.
+  # Throw in the external data center, now you have a total of 3 original data centers + the external data center which equals 4.
+  # With 4 data centers, 2 etcd nodes per data center, that gives us a total of 8.
+  # The quorum of 8, is ( 8 / 2 ) + 1 = 5;
+  # So we need a total of 5 etcd nodes to have a quorum
+  # So a total of 5 etcd nodes -2 ( the number left in running data center ) = 3. This meanse the external data center
+  # will need 3 etcd nodes
+  # And below this is the math for it.
+
+  nodesForExternalDC=$((  ( ( ($etcdNeeded + $etcdPerDataCenter) / 2 ) + 1 ) - $etcdPerDataCenter         )) 
+
+  # The total number of etcd nodes needed including external ones
   totalNodes=$(( $etcdNeeded + $nodesForExternalDC ))  
 
+  # Based on the total nodes and external data center, we get a new quorum
   newQuorum=$(( (($totalNodes)/2) + 1 ))
   
+  # The number of extra etcd nodes to build
   extraNeeded=$(( $newQuorum - $etcdPerDataCenter ))
 
+  # Self explanatory
   nodesForExternalDC=$extraNeeded
 
-  totalNodes=$(( $etcdNeeded + $extraNeeded ))  
+  # -------------------------------------------- NOTE  -------------------------------------------------
+  # I Think I am reclaulating total nodes twice unnecessarily. Im just to tired to sii if i am right now
+  # ----------------------------------------------------------------------------------------------------
   
+  totalNodes=$(( $etcdNeeded + $extraNeeded ))  
+
   etcdNeeded=$totalNodes
 
   echo -e $bold
@@ -159,9 +190,6 @@ function etcdHostsNeeded() {
   echo -e "\tTotal ETCD nodes needed including the external ones: $totalNodes"
   echo -e "\tThe new number of nodes needed to maintain a quorum: $newQuorum"
   echo -e
-
-#exit
-
 
 }
 
@@ -649,11 +677,12 @@ function checkAlpha() {
 composeFile='docker-compose.yaml'
 nodeName=""
 numDataCenters=1
-maxDataCenters=4
+maxDataCenters=3
 nodesPerDataCenter=2
 etcdPerDataCenter=1 
 minDcNeeded=1
 backGround=0
+force=0
 pgMajor=16  # Hard code for this version of postgres in this image
 
 #bold=$(tput bold)
@@ -667,12 +696,13 @@ normal="\033[0m"
 
 
 
-while getopts bn:d:c:e:m:v: name
+while getopts fbn:d:c:e:m:v: name
 do
    case $name in
       n) nodeName="$OPTARG";;
       v) pgMajor="$OPTARG";;
       b) backGround="1";;
+      f) force="1";;
       d) numDataCenters="$OPTARG";;
       c) nodesPerDataCenter="$OPTARG";;
       e) etcdPerDataCenter="$OPTARG";;
@@ -703,8 +733,9 @@ if [ $totalNodes -gt $maxNodes ]; then
    usage
 fi
 
-if [ $numDataCenters -gt $maxDataCenters ]; then
-   usageMessage="$bold  Due to the complexity of setting up ETCD / Quorums / Docker / Resources, we are limiting max number of data centers to $maxDataCenters $normal"
+
+if [ $numDataCenters -gt $maxDataCenters ] && [ $force -eq 0 ]; then
+   usageMessage="$bold  You are requesting to deploy more than ${maxDataCenters} data centers. This will require more resources which could be problematic.\n\r\t  If you wish to move forward, run genCompose with a -f $normal"
    usage
 fi
 
