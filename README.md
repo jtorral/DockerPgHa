@@ -1,3 +1,4 @@
+
 # DockerPgHA  
   
 The following is for dockerizing a simulated multi data center Postgres 16 on Ubuntu 20.04 using Patroni, etcd, pgbackrest and Docker.  
@@ -5,138 +6,147 @@ The following is for dockerizing a simulated multi data center Postgres 16 on Ub
 You have the ability to generate docker-compose files for x number of data centers and x number of nodes per data center.  
   
 Below is a TL;DR section followed by a more detailed explanation of what is happening.  
+  
+  
+## New changes made as noted here.  
+  
+### Naming changes  
+First of all lets start with naming of service / containers  
+  
+Since this is intended to mimic multi data center environments everything is named in a way that makes identification easy.  
+  
+Each machine name has a data center name as part of its' host name. So if we name our machines "demo"  and specify x number of data centers, they will clearly be identifiable.
 
 
-## New changes made as noted here.
+**pgha-etcd1-DC1-1**
 
-### Naming changes
-First of all lets start with naming of service / containers
-
-Since this is intended to mimic multi data center environments everything is named in a way that makes identification easy.
-
-For example when you run genCompose to generate the docker-compose file as listed below, you will specify a name for your pg servers. In this example we will call it **demo**
-
-If you decide to mimic 2 data centers with 3 nodes per data center, this is what to expect for naming:
-
-**pgha-demo1-1-1**
-
-**[prefix]-[node name and node number]-[datacenter]-[docker instance]**
-
-- Where prefix will be pgha to identify easily i with docker ps . etc ...
-- The node name with a number representing which node number out of the nodes per data center 
-- The data center number the node will reside in
-- The docker instance the deploy is running under. ( you could have multiple docker instance running with the same name so the instance, makes it unique
-
-So in the above example, **pgha-demo1-1-1** can quickly be identified as the first demo **demo1** of  3 nodes inside data center 1. Where as **pgha-demo3-2-1** would be identified as the 3rd demo node inside data center 2
+**pgha-demo2-DC1-1**
 
 
-### Networking
+If you wanted 3 machines with the hostname node per datacenter, each host would be named demo demo**x** per data center, where x would be 1,2 or 3.
 
-We now create x number of networks based on the number of data centers. Plus a non data center network. For example, if you create 2 data centers,  You will generate a total of 3 networks.  1 network for each data center and 1 non data center network,
-```
-pgha-net1-1
-pgha-net2-1  
-pgha-net3-1
-```
-In this case the naming is **[prefix]-[net data center]-[container number]**
+**pgha-demo2-DC1-1**
 
-### Etcd distribution
+The last number in the name represents the docker instance running. This allows you to have multiple containers with the same name just changing the last number to represent a unique set of docker instance.  For example ...
 
-Based on the number of data centers we mimic, in order to maintain a quorum we now have x number of etcd hosts **per data center** tied to a network, plus **one extra etcd host outside of a data center network**.  This is the one that will help keep a quorum if a dc goes down.
+**pgha-demo2-DC1-1**
+**pgha-demo2-DC1-2**
 
-### pgbackrest 
-
-Pgbackrest server gets placed on the non data center network
-
-### Optionally run the haproxy instance
-
-Download the pgTraining  repo from here:
-
-https://github.com/jtorral/pgTraining
-
-Follow the instructions to build the image and run the container.
-
-Use the following to get the basic container running
-
-```
-929 docker run -p 5411:5432 -p 5000:5000 -p 5001:5001 --env=PGPASSWORD=postgres -v pg1-pgdata:/pgdata --hostname haProxy --network=dockerpgha_pgha-net1-1 --name=haProxy -dt pg16-rocky8-bundle
-```
-
-Notice, we are attaching to the network defined for our PgHa environment.
-
-After you get it running, connect the additional networks to the container so it is visible to the other servers and vice versa.
-
-```
-docker network connect dockerpgha_pgha-net2-1 haProxy  
-docker network connect dockerpgha_pgha-net3-1 haProxy
-```
-
-Now get the config file set up in ```/etc/haproxy/haproxy.cfg```
-
-The file is can be copied from this repo as well.
-
-```haproxy.cfg.sample```
+Above we have two sets running with the name demo but ending with 1 and 2. 1 would be one docker container environment, 2 would be a different one ut both share the same given host names of **demo**
 
 
-If all goes as planned, start haproxy manually  
+ 
+### Networking  
+  
+We now create x number of networks based on the number of data centers. Plus a non data center network to host any external etcd nodes needed to ensure availability and quorum.
 
-```haproxy -V -f /etc/haproxy/haproxy.cfg```
+    Network ...  
+      
+    DC1 network is pgha-net-DC1-1 : Subnet: 172.18.0.0/16  
+    DC2 (Non DC) network is pgha-net-DC2-1 : Subnet: 172.19.0.0/16
 
-You can run it in the background. The above is for testing
+  
+### Etcd distribution  
 
-Now you can connect to a primary database via haproxy like so
+Etcd node calculation and distribution is completely different now when running genCompose to create the docker-compose file.
 
-```psql -h localhost -p 5000 -U postgres```
+### An explanation is needed  ....
 
-To connect to read only, use port 5001
+We will need etcd nodes outside the data centers to vote. This is so we can maintain quorum as others go down,  
+So this is basically, the original number of etcd nodes needed, plus 1 additional set of external nodes.  
 
-### Added basic script for status
+The additional number of external nodes is based number of etcd nodes per data center.  
 
-This was a lte night though so it needs to be improved. However, its a good start to getting info about containers.
+We get the quorum needed based on this new number of nodes. 
 
-pghaStat
+Subtract how many nodes per data center which leaves us with how many extra nodes we need externally.  
+  
+For example ...
 
-produces output like this
+If you have 3 data centers with 2 etcd nodes per data center. That means a quorum of 4.  ( 3 * 2 ) / 2 + 1  
+If all data centers but 1 were to go down, your are left with only 1 data center with 2 etcd nodes which is not enough to be a quorum.  
+
+Now we throw in the external data center, you now have a total of 3 original data centers + the external data center which equals 4.  
+
+With 4 data centers, 2 etcd nodes per data center, that gives us a total of 8 and the quorum for 8, is ( 8 / 2 ) + 1 = 5.  That means  we need a total of 5 etcd nodes to have a quorum .
+ 
+So a total of 5 etcd nodes -2 ( the number left in running in the remaining data center ) = 3. This means the external data center  will need 3 etcd nodes .
+
+ 
+ 
+### pgbackrest  
+  
+Pgbackrest server gets placed on the non data center network  
+  
+  
+### Added basic script for status  
+  
+This was a late night though so it needs to be improved. However, its a good start to getting info about containers.  I will be using other methods. This can take time if there are down systems. 
+  
+**pghastat**
+  
+produces the following ....
 
 ```
 Please wait while we gather some data ...  
-  
-Instance used to query env : pgha-demo1-1-1  
-Patroni Leader : pgha-demo1-2-1  
-Active Patroni nodes : 6  
-DC hosting Patroni Leader : 2  
-Docker containers in DC : pgha-demo2-2-1 pgha-demo1-2-1 pgha-demo3-2-1 pgha-etcd4-2-1 pgha-etcd3-2-1  
+If there are down systems, this could take a few minues  
   
   
-Patroni cluster details ....  
+Summary ...  
+  
+Instance used to query env : pgha-demo1-DC1-1  
+Patroni Leader : pgha-demo2-DC1-1  
+Active Patroni nodes : 2  
+Active Patroni members : pgha-demo1-DC1-1 pgha-demo2-DC1-1  
+DC hosting Patroni Leader : DC1  
+Docker containers in DC1 : pgha-demo2-DC1-1 pgha-demo1-DC1-1 pgha-etcd1-DC1-1  
+Number of running data centers : 1  
+Data center names : DC1  
   
   
-+ Cluster: pgha_cluster (7501823498374451243) ----------+----+-----------+  
+  
+Patroni cluster ...  
+  
++ Cluster: pgha_cluster (7515114130521325610) --+-----------+----+-----------+  
 | Member | Host | Role | State | TL | Lag in MB |  
-+----------------+----------------+---------+-----------+----+-----------+  
-| pgha-demo1-1-1 | pgha-demo1-1-1 | Replica | streaming | 7 | 0 |  
-| pgha-demo1-2-1 | pgha-demo1-2-1 | Leader | running | 7 | |  
-| pgha-demo2-1-1 | pgha-demo2-1-1 | Replica | streaming | 7 | 0 |  
-| pgha-demo2-2-1 | pgha-demo2-2-1 | Replica | streaming | 7 | 0 |  
-| pgha-demo3-1-1 | pgha-demo3-1-1 | Replica | streaming | 7 | 0 |  
-| pgha-demo3-2-1 | pgha-demo3-2-1 | Replica | streaming | 7 | 0 |  
-+----------------+----------------+---------+-----------+----+-----------+  
++------------------+------------------+---------+-----------+----+-----------+  
+| pgha-demo1-DC1-1 | pgha-demo1-dc1-1 | Replica | streaming | 1 | 0 |  
+| pgha-demo2-DC1-1 | pgha-demo2-dc1-1 | Leader | running | 1 | |  
++------------------+------------------+---------+-----------+----+-----------+  
   
-ETCD cluster details ....  
+Network ...  
+  
+DC1 network is pgha-net-DC1-1 : Subnet: 172.18.0.0/16  
+DC2 (Non DC) network is pgha-net-DC2-1 : Subnet: 172.19.0.0/16  
   
   
-+---------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+  
+etcd member health ...  
+  
++-----------------------+--------+------------+-------+  
+| ENDPOINT | HEALTH | TOOK | ERROR |  
++-----------------------+--------+------------+-------+  
+| pgha-etcd5-DC2-1:2379 | true | 4.28825ms | |  
+| pgha-etcd1-DC1-1:2379 | true | 3.838178ms | |  
+| pgha-etcd3-DC2-1:2379 | true | 2.981874ms | |  
+| pgha-etcd2-DC2-1:2379 | true | 4.431776ms | |  
+| pgha-etcd4-DC2-1:2379 | true | 4.490715ms | |  
++-----------------------+--------+------------+-------+  
+  
+etcd status ...  
+  
++-----------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+  
 | ENDPOINT | ID | VERSION | DB SIZE | IS LEADER | IS LEARNER | RAFT TERM | RAFT INDEX | RAFT APPLIED INDEX | ERRORS |  
-+---------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+  
-| pgha-etcd2-1-1:2379 | 856afccebea5e496 | 3.5.13 | 127 kB | false | false | 3 | 344 | 344 | |  
-| pgha-etcd4-2-1:2379 | 4b1ef8498608d2d9 | 3.5.13 | 127 kB | false | false | 3 | 344 | 344 | |  
-| pgha-etcd5-3-1:2379 | 84ca01859d3aca7d | 3.5.13 | 127 kB | false | false | 3 | 344 | 344 | |  
-| pgha-etcd3-2-1:2379 | efa6a64b5fec8ce | 3.5.13 | 127 kB | true | false | 3 | 344 | 344 | |  
-| pgha-etcd1-1-1:2379 | d8637f2e8aa15c2e | 3.5.13 | 127 kB | false | false | 3 | 344 | 344 | |  
-+---------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
++-----------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+  
+| pgha-etcd1-DC1-1:2379 | f68cb3af0d6092d4 | 3.5.13 | 41 kB | false | false | 2 | 59 | 59 | |  
+| pgha-etcd2-DC2-1:2379 | e238d861bf95b2ad | 3.5.13 | 41 kB | false | false | 2 | 59 | 59 | |  
+| pgha-etcd4-DC2-1:2379 | 179144efdbfdd2db | 3.5.13 | 41 kB | false | false | 2 | 59 | 59 | |  
+| pgha-etcd5-DC2-1:2379 | ad922e091dafc9fa | 3.5.13 | 41 kB | true | false | 2 | 59 | 59 | |  
+| pgha-etcd3-DC2-1:2379 | c83f647c1cc92d38 | 3.5.13 | 41 kB | false | false | 2 | 59 | 59 | |  
++-----------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
 ```
 
-
+  
+  
   
 ## TL;DR;  
   
@@ -175,27 +185,67 @@ Usage:
 ./genCompose [OPTION]  
   
 -d Number of data centers to simulate. (default = 1)  
--c number of nodes per data center. (default = 2)  
--n Prefix name to use for db connertainer.  
--v Postgres Major version number. i.e 16  
+-c number of Postgres nodes per data center. (default = 2)  
+-e number of ETCD nodes per data center. (default = 1)  
+-m Minimum number of data centers to support after a failure. (default = 1)  
+-n Prefix name to use for db containers (lower case no special characters).  
 -b Start patroni in background and keep container running even if it stops.  
 Good for upgrades and maintenance tasks.  
   
-Number of db nodes is capped at 9. So (-d * -c) should be <= 9  
-Number of etcd nodes are calculated on (-d * -c ) / 2 + 1  
+  
+-Number of db nodes is capped at 9. So (-d * -c) should be <= 9  
+  
+-By default, the minimum number of data centers that can remain running out of the number of data centers declared is 1. Meaning everything  
+still works as long as 1 data center is active.  
+This can be change by using -m option and specifying a value of 2 which would essentially only work with a minimum of 2 data centers running.  
+  
+-Keep in mind that if the majority of your data centers are down, you have bigger problems to worry about.
 ```  
   
-From the main folder  
-  
-```  
-docker-compose create  
-```  
-  
-Followed by  
-  
-```  
-docker-compose start  
-```  
+Once you generate your docker-compose file with genCompose, it outputs some basic instructions similar to the following
+
+    genCompose -d1 -c2 -n demo  
+      
+      
+    Overview ...  
+      
+    Number of data centers: 1  
+    Original number of ETCD nodes needed: 3  
+    Original number od ETCD nodes needed for a quorum: 2  
+    Original number od ETCD nodes to deploy per data center: 1  
+    The number of data centers to maintain running after all others fail: 1  
+    Number of external ETCD nodes needed outside of data centers to maintain a quorum: 2  
+    Total ETCD nodes needed including the external ones: 5  
+    The new number of nodes needed to maintain a quorum: 3  
+      
+      
+      
+    File docker-compose.yaml generated  
+      
+      
+    To get started, run ...  
+      
+      
+    docker-compose create  
+    docker-compose start  
+      
+      
+    To stop and delete the containers run ...  
+      
+      
+    docker-compose down  
+      
+      
+    To remove associated volumes for good run ...  
+      
+      
+    docker volume rm $(docker volume ls | grep pgha- | awk '{print $2}')  
+      
+      
+    Try running the foloowing for a deploy status ...  
+      
+    ./pghastat demo
+
   
 You should now be able to access the containers  
   
@@ -280,128 +330,19 @@ pgha-pgbackrest latest 23765655a0d5 2 hours ago 314MB
 pgha-etcd-3.5 latest edab3b23c2c4 3 hours ago 344MB  
 ```  
   
-### genCompose  
-  
-The genCompose file lets you generate docker-compose.yaml files for your desired environment.  
-  
-1. etcd containers are created based on your choice below  
-2. Specify the number of data centers to simulate (-d). Docker nertwork is assignbed based on dc number..  
-3. specify the number of postgres containers per data center (-c). Default is 2.  
-4. name your postgres containers.  
-5. Specify the version of postgres. Used vor data directory. ( Will automate this eventually )  
-6. Specify if the patroini containers will run in background and keep container up even if patroni is down.  
-  
-When you run genCompose and specify -b, patroni will start with a nohup followed by a  
-```  
-tail -f /dev/null  
-```  
-This will allow you to make changes in patroni that require it to stop and restart manually by not stopping the container when the patroni process terminates.  
-  
-It is also used for custom backup restores.  
-  
-When naming a postgres container, it really means a prefix for the container name because genCompose will generate the name with a specific format.  
-  
-For example, If you were to specify the name **pg** and 2 data centers with 2 nodes per data center, genCompose would create the following nodes.  
-  
-1. pg1-node1  
-2. pg1-node2  
-3. pg2-node1  
-4. pg2-node2  
-  
-You create a node name of "dude" you would get  
-  
-dude1-node1, dude1-node2 and so on ...  
-  
-the number after the name prefix is synonymous with a data center. So, pg1 would reside in data center 1.  
-  
-genCompose builds 3 networks within the docker environment.  
-  
-1. net1  
-2. net2  
-3. net3  
-  
-As each node gets added to the docker-compose file, priority is given to the network based on the node name.  
-  
-1. pg1 nodes would be prioritized to net1  
-2. pg2 nodes would be prioritized to net2  
-3. pg3 nodes would be prioritized to net3  
-  
-Additional data centers woud loop around net1 through 3.  
-Feel free to modify the genCompose script and add additional networks and change the priority logic.  
-  
-The script adds **depends_on** sections to the postgres and pgbackrest service.  
-Postgres depends on etcd services to be running prior to starting.  
-Postgres, (except for first node in first dc) depends on pg1 postgres to be running as well.  
-  
-  
-Keep in mind, depends_on is not the best way to specify startup order. Health checks should be used.  
-  
-Additionally, genCompose assigns static port mapping to postgres containers so you can consistently access them with the same connection string.  
-genCompose trys to identify the highest port number already mapped to 5432 in your environment and create maps higher than that.  
-  
-### The running environment  
-  
-In this example, there is one data center with 9 nodes  
-  
-```  
-CONTAINER ID IMAGE COMMAND CREATED STATUS PORTS NAMES  
-c83187335a3d 3bef0a1c14a4 "/entrypoint.sh" About an hour ago Up About an hour 0.0.0.0:50558->5432/tcp pgha-pg1-node8  
-e6ab34c49d96 3bef0a1c14a4 "/entrypoint.sh" About an hour ago Up About an hour 0.0.0.0:50559->5432/tcp pgha-pg1-node9  
-da696d20bde7 3bef0a1c14a4 "/entrypoint.sh" About an hour ago Up About an hour 0.0.0.0:50553->5432/tcp pgha-pg1-node3  
-d055362db7aa 3bef0a1c14a4 "/entrypoint.sh" About an hour ago Up About an hour 0.0.0.0:50552->5432/tcp pgha-pg1-node2  
-968ceb990f4f 3bef0a1c14a4 "/entrypoint.sh" About an hour ago Up About an hour 0.0.0.0:50556->5432/tcp pgha-pg1-node6  
-dc7fc7aa2519 pgha-pgbackrest "/entrypoint.sh" About an hour ago Up About an hour pgha-pgbackrest  
-a1f85f977850 3bef0a1c14a4 "/entrypoint.sh" About an hour ago Up About an hour 0.0.0.0:50554->5432/tcp pgha-pg1-node4  
-e80e26167b0c 3bef0a1c14a4 "/entrypoint.sh" About an hour ago Up About an hour 0.0.0.0:50557->5432/tcp pgha-pg1-node7  
-8596dfc62104 3bef0a1c14a4 "/entrypoint.sh" About an hour ago Up About an hour 0.0.0.0:50555->5432/tcp pgha-pg1-node5  
-b80a73f9bb4a 3bef0a1c14a4 "/entrypoint.sh" About an hour ago Up About an hour 0.0.0.0:50551->5432/tcp pgha-pg1-node1  
-9728a711dee1 pgha-etcd-3.5 "/usr/bin/etcd --nam…" About an hour ago Up About an hour 2380/tcp, 0.0.0.0:52635->2379/tcp pgha-etcd3  
-1a33819a0c11 pgha-etcd-3.5 "/usr/bin/etcd --nam…" About an hour ago Up About an hour 2380/tcp, 0.0.0.0:52637->2379/tcp pgha-etcd1  
-db8dcedb06a6 pgha-etcd-3.5 "/usr/bin/etcd --nam…" About an hour ago Up About an hour 2380/tcp, 0.0.0.0:52634->2379/tcp pgha-etcd2  
-afb30ebb7d4b pgha-etcd-3.5 "/usr/bin/etcd --nam…" About an hour ago Up About an hour 2380/tcp, 0.0.0.0:52638->2379/tcp pgha-etcd4  
-58f7baa8c01c pgha-etcd-3.5 "/usr/bin/etcd --nam…" About an hour ago Up About an hour 2380/tcp, 0.0.0.0:52636->2379/tcp pgha-etcd5  
-```  
-  
-  
-### entrypoint scripts  
-  
-Some notes about the entrypoint scripts.  
-  
-#### pgpatroni entrypoint details  
-  
-This script will  
-1. create patroni.conf  
-2. create pgbackrest.conf  
-3. Check if it has to restore itself from backup  
-4. Remove strict host key checking from ssh config so no answering prompts is required  
-  
-If the file /pgha/config/restoreme exists, the container will try to initialize itself from a restored backup. Additional action is required and detailed below.  
-  
-#### pgbackrest entrypoint details  
-  
-This script will  
-1. create pgbackrest.conf  
-2. Check for the presence of a required stanza and attempt to create it.  
-  
-If the stanza does not exist, pgbackrest will attempt to create it 10 times with a 15 second sleep between each attempt.  
-  
-You could manually create it with the following command. **Remember all pgbackrest commands must be run as user postgres.**  
-  
-```  
-docker exec -it pgha-pgbackrest sudo -u postgres pgbackrest --stanza=${STANZA_NAME} stanza-create  
-```  
+
   
   
 ### Backup and restores  
-  
-  
+ 
+**This part of the documentation has not changed and is based on the old naming convention .  So don't be confused.**
   
 There are two ways of restoring backups for these docker containers.  
   
 First things first. Make sure you have backups.  
   
   
-##### Method 1  
+#### Method 1  
   
 Simply create the trigger file /pgha/config/restoreme by running  
 ```  
@@ -454,7 +395,7 @@ patronictl -c /pgha/config/patroni.conf reinit pgha_cluster pg1-node3 --force
 If you change your mind, remove the trigger file /pgha/config/restoreme *****  
 ```  
   
-##### Method 2  
+#### Method 2  
   
 The other way to restore is using custom pgbackrest restore commands. This requires that the container stays running even if patroni is shut down. You can accomplish this by passing passing the option **-b** when you generate you  
 r docker-compose file using genCompose.  
@@ -468,7 +409,7 @@ tail -f /dev/null
 which keeps the container up even when patroni is not running.  
   
   
-##### A high level overview of the process is as follows:  
+#### A high level overview of the process is as follows:  
   
   
   
@@ -577,10 +518,6 @@ ax=16 --repo1-host=pgbackrest --repo1-host-user=postgres --stanza=pgha_db
 | pg1-node3 | pg1-node3 | Replica | streaming | 2 | 0 |  
 +-----------+-----------+---------+-----------+----+-----------+  
 ```  
-  
-  
-  
-  
   
 #### Want to perform a backup ?  
   
@@ -760,7 +697,9 @@ etcdctl --write-out=table --endpoints=$ENDPOINTS endpoint status
   
   
 ## Connecting to the databases  
-  
+
+**proxysql has been added. I will detail that since I put that in a different repo**
+
 Rather than using a third party tool such as haproxy to manage and load balance our connections to the database, we can use Postgreges libpq to achieve similar results without the overhead. By customizing our connection string w  
 e can do the following.  
   
@@ -836,23 +775,3 @@ server must be in hot standby mode
 first try to find a standby server, but if none of the listed hosts is a standby server, try again in any mode  
   
   
-## Cleaning up when you are done  
-  
-When you are done with the containers and no longer need them you can perform the following which will stop and remove the containers.  
-  
-From within the Docker folder where your docker-compose.yaml file is execute the following.  
-  
-```  
-docker compose down  
-```  
-  
-If you wish to remove the actual volumes created for each container, execute the following.  
-  
-```  
-docker volume rm $(docker volume ls | grep dockerpgha | awk '{print $2}')  
-```  
-  
-Please note that removing the volumes will remove any data you had saved. If you decide to leave them in place, you can recreate the containers  
-and it will use the data that in those volumes.  
-  
-Also, make sure the docker volume rm above is using grep for specific volume names. If you are addressing different volumes modify your grep command above.

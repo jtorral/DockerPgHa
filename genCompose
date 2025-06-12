@@ -114,7 +114,8 @@ function checkUsed() {
    # -- Lets grab a container number. We focus on etcd1- since we know that will always be running if we spin up pgha clusters
    # -- using these scripts. Otherwise, the awk might fail and grab another name to check that does not match the naming convention used
    # -- remember the first number after the first hyphen in the name represents the container number
-   usedContainers=$(docker ps --format "{{.Names}}" | grep "etcd1-" | awk -F "-" '{print $2}' | sort | tail -1)
+
+   usedContainers=$(docker ps --format "{{.Names}}" | grep "etcd1-" | awk -F "-" '{print $NF}' | sort | tail -1)
 }
 
 
@@ -122,10 +123,15 @@ function checkUsed() {
 
 
 # -- Determin how many etcd nodes we need
+
 function etcdHostsNeeded() {
 
   # Startingnumber of etcd nodes needed. 
   etcdNeeded=$(( $etcdPerDataCenter * $numDataCenters ))  
+
+  if [ $etcdNeeded -le 2 ]; then
+     etcdNeeded=3;
+  fi
 
   # Another variubal to hold original value since it will change
   originalEtcdNeeded=$etcdNeeded
@@ -801,7 +807,7 @@ echo -e
 echo -e $bold $yellow
 echo -e  "\tTry running the foloowing for a deploy status ..."
 echo -e $normal
-echo -e "\t\t./pghaStat $originalNodeName"
+echo -e "\t\t./pghastat $originalNodeName"
 echo -e
 
 
