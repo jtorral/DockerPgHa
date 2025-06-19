@@ -730,6 +730,7 @@ checkNumber $pgMajor "-v"
 checkNumber $numDataCenters "-d"
 checkNumber $nodesPerDataCenter "-c"
 
+composeFile="docker-compose.${nodeName}.yaml"
 
 maxNodes=12
 totalNodes=$(($numDataCenters * $nodesPerDataCenter))
@@ -789,14 +790,14 @@ echo -e $bold $yellow
 echo -e  "\tTo get started, run ..."
 echo -e $normal
 echo -e
-echo -e  "\t\tdocker-compose create"
-echo -e  "\t\tdocker-compose start"
+echo -e  "\t\tdocker-compose -f $composeFile create"
+echo -e  "\t\tdocker-compose -f $composeFile start"
 echo -e
 echo -e $bold $yellow
 echo -e  "\tTo stop and delete the containers run ..."
 echo -e $normal
 echo -e
-echo -e  "\t\tdocker-compose down"
+echo -e  "\t\tdocker-compose -f $composeFile down"
 echo -e
 echo -e $bold $yellow
 echo -e  "\tTo remove associated volumes for good run ..."
