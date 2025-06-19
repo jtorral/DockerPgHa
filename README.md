@@ -83,7 +83,7 @@ Pgbackrest server gets placed on the non data center network
   
 This was a late night though so it needs to be improved. However, its a good start to getting info about containers.  I will be using other methods. This can take time if there are down systems. 
   
-**pghastat**
+**hastat**
   
 produces the following ....
 
@@ -244,7 +244,7 @@ Once you generate your docker-compose file with genCompose, it outputs some basi
       
     Try running the foloowing for a deploy status ...  
       
-    ./pghastat demo
+    ./hastat demo
 
   
 You should now be able to access the containers  
